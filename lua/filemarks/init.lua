@@ -4,7 +4,7 @@ local uv = vim.uv or vim.loop
 
 local default_config = {
     goto_prefix = "<leader>m",
-    action_prefix = "<leader>s",
+    action_prefix = "<leader>M",
     storage_path = vim.fn.stdpath("state") .. "/filemarks.json",
     project_markers = { ".git", ".hg", ".svn" },
 }
@@ -15,6 +15,7 @@ local state = {
     keymaps = {},
     action_keymaps = {},
     loaded = false,
+    commands_installed = false,
 }
 
 local function normalize_path(path)
@@ -22,7 +23,7 @@ local function normalize_path(path)
         return nil
     end
     local ok, resolved = pcall(uv.fs_realpath, path)
-    if ok and resolved then
+    if ok and type(resolved) == "string" then
         return vim.fs.normalize(resolved)
     end
     return vim.fs.normalize(path)
@@ -35,6 +36,29 @@ local function detect_project(path)
         return normalize_path(root)
     end
     return normalize_path(vim.fn.getcwd())
+end
+
+local function resolve_project_path(path, project)
+    if type(path) ~= "string" then
+        return nil
+    end
+    local trimmed = vim.trim(path)
+    if trimmed == "" then
+        return nil
+    end
+    if trimmed:sub(1, 1) == "~" then
+        trimmed = vim.fn.expand(trimmed)
+    else
+        local is_abs = trimmed:sub(1, 1) == "/" or trimmed:match("^%a:[/\\]")
+        if not is_abs then
+            local base = project or detect_project()
+            if not base then
+                return nil
+            end
+            trimmed = vim.fs.joinpath(base, trimmed)
+        end
+    end
+    return normalize_path(trimmed)
 end
 
 local function get_marks(path_hint)
@@ -76,6 +100,18 @@ local function ensure_keymap(key)
         M.open(key)
     end, { desc = string.format("Filemarks: jump to %s", key) })
     state.keymaps[key] = lhs
+end
+
+local function rebuild_jump_keymaps()
+    local keys = vim.tbl_keys(state.keymaps)
+    for _, key in ipairs(keys) do
+        clear_keymap(key)
+    end
+    for _, marks in pairs(state.data) do
+        for key in pairs(marks) do
+            ensure_keymap(key)
+        end
+    end
 end
 
 local function ensure_storage_dir()
@@ -153,13 +189,132 @@ local function install_action_keymaps()
         { "r", function()
             M.remove()
         end, "Remove filemark" },
-        { "l", M.list, "List filemarks" },
+        { "l", M.list, "Edit filemarks" },
     }
     for _, action in ipairs(actions) do
         local lhs = prefix .. action[1]
         vim.keymap.set("n", lhs, action[2], { desc = "Filemarks: " .. action[3] })
         table.insert(state.action_keymaps, lhs)
     end
+end
+
+local function install_commands()
+    if state.commands_installed then
+        return
+    end
+    state.commands_installed = true
+
+    vim.api.nvim_create_user_command("FilemarksAdd", function(opts)
+        local key = opts.fargs[1]
+        local target = opts.fargs[2]
+        M.add(key, target)
+    end, {
+        desc = "Add/update a persistent filemark",
+        nargs = "*",
+        complete = "file",
+    })
+
+    vim.api.nvim_create_user_command("FilemarksRemove", function(opts)
+        local key = opts.fargs[1]
+        M.remove(key)
+    end, {
+        desc = "Remove a filemark from the current project",
+        nargs = "?",
+    })
+
+    vim.api.nvim_create_user_command("FilemarksList", function()
+        M.list()
+    end, {
+        desc = "Edit filemarks for the current project",
+    })
+
+    vim.api.nvim_create_user_command("FilemarksOpen", function(opts)
+        local key = opts.fargs[1]
+        if not key then
+            vim.notify("Filemarks: provide a key to open", vim.log.levels.WARN)
+            return
+        end
+        M.open(key)
+    end, {
+        desc = "Jump to the file referenced by a key",
+        nargs = 1,
+    })
+end
+
+local function generate_editor_lines(project, marks)
+    local lines = {
+        string.format("# Filemarks for %s", project),
+        "# Format: <key><space><path>. Lines starting with # are ignored.",
+        "# Delete a line to remove it. Save (:w) to persist changes.",
+        "",
+    }
+    local keys = vim.tbl_keys(marks or {})
+    table.sort(keys)
+    for _, key in ipairs(keys) do
+        table.insert(lines, string.format("%s %s", key, marks[key]))
+    end
+    return lines
+end
+
+local function parse_editor_buffer(buf, project)
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local parsed = {}
+    for idx, line in ipairs(lines) do
+        local trimmed = vim.trim(line)
+        if trimmed ~= "" and not vim.startswith(trimmed, "#") then
+            local key, path = trimmed:match("^(%S+)%s+(.+)$")
+            if not key or not path then
+                return nil, string.format("Line %d is invalid. Expected '<key> <path>'", idx)
+            end
+            if parsed[key] then
+                return nil, string.format("Duplicate key '%s' detected on line %d", key, idx)
+            end
+            local resolved = resolve_project_path(path, project)
+            if not resolved then
+                return nil, string.format("Could not resolve path on line %d", idx)
+            end
+            parsed[key] = resolved
+        end
+    end
+    return parsed
+end
+
+local function open_marks_editor(project, marks)
+    vim.cmd("tabnew")
+    local buf = vim.api.nvim_get_current_buf()
+    vim.api.nvim_set_option_value("buftype", "acwrite", { buf = buf })
+    vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
+    vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
+    vim.api.nvim_set_option_value("filetype", "filemarks", { buf = buf })
+    vim.api.nvim_buf_set_name(buf, string.format("filemarks://%s", project))
+    vim.api.nvim_buf_set_var(buf, "filemarks_project", project)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, generate_editor_lines(project, marks))
+    vim.api.nvim_set_option_value("modified", false, { buf = buf })
+
+    vim.api.nvim_create_autocmd("BufWriteCmd", {
+        buffer = buf,
+        callback = function()
+            local ok, project_var = pcall(vim.api.nvim_buf_get_var, buf, "filemarks_project")
+            if not ok then
+                vim.notify("Filemarks: unable to determine project for editor buffer", vim.log.levels.ERROR)
+                return
+            end
+            local parsed, parse_err = parse_editor_buffer(buf, project_var)
+            if not parsed then
+                vim.notify(string.format("Filemarks: %s", parse_err), vim.log.levels.ERROR)
+                return
+            end
+            if next(parsed) then
+                state.data[project_var] = parsed
+            else
+                state.data[project_var] = nil
+            end
+            save_state()
+            rebuild_jump_keymaps()
+            vim.api.nvim_set_option_value("modified", false, { buf = buf })
+            vim.notify("Filemarks: saved changes", vim.log.levels.INFO)
+        end,
+    })
 end
 
 function M.configure(opts)
@@ -231,19 +386,8 @@ function M.list()
         vim.notify(string.format("Filemarks: %s", project_or_err or "unknown error"), vim.log.levels.ERROR)
         return
     end
-    if vim.tbl_isempty(marks) then
-        vim.notify("Filemarks: no marks for this project", vim.log.levels.INFO)
-        return
-    end
     local project = project_or_err
-    local lines = { string.format("Filemarks for %s:", project) }
-    local keys = vim.tbl_keys(marks)
-    table.sort(keys)
-    for _, key in ipairs(keys) do
-        local path = marks[key]
-        table.insert(lines, string.format("  %s -> %s", key, path))
-    end
-    vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+    open_marks_editor(project, marks)
 end
 
 function M.open(key)
@@ -270,6 +414,7 @@ end
 
 function M.setup(opts)
     M.configure(opts or {})
+    install_commands()
 end
 
 return M
