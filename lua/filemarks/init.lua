@@ -21,6 +21,24 @@ local state = {
 
 local comment_ns = vim.api.nvim_create_namespace("filemarks_comments")
 
+local function format_path_for_project(path, project)
+    if not path or not project then
+        return path
+    end
+    if path:sub(1, #project) == project then
+        local suffix = path:sub(#project + 1)
+        suffix = suffix:gsub("^[/\\]", "")
+        if suffix ~= "" then
+            return suffix
+        end
+    end
+    local ok, rel = pcall(vim.fs.relpath, path, project)
+    if ok and type(rel) == "string" and rel ~= "" then
+        return rel
+    end
+    return path
+end
+
 local function highlight_comments(buf)
     if not buf or not vim.api.nvim_buf_is_valid(buf) then
         return
@@ -292,13 +310,15 @@ local function generate_editor_lines(project, marks)
     local lines = {
         string.format("# Filemarks for %s", project),
         "# Format: <key><space><path>. Lines starting with # are ignored.",
+        "# <key> must be single digit/letter. <path> must be relative to the project.",
         "# Delete a line to remove it. Save (:w) to persist changes.",
         "",
     }
     local keys = vim.tbl_keys(marks or {})
     table.sort(keys)
     for _, key in ipairs(keys) do
-        table.insert(lines, string.format("%s %s", key, marks[key]))
+        local display_path = format_path_for_project(marks[key], project)
+        table.insert(lines, string.format("%s %s", key, display_path))
     end
     return lines
 end
@@ -390,13 +410,17 @@ function M.add(key, file_path)
         vim.notify(string.format("Filemarks: %s", project_or_err or "unknown error"), vim.log.levels.ERROR)
         return
     end
+    local project = project_or_err
+    local display_path = format_path_for_project(resolved_file, project)
     if marks[key] == resolved_file then
-        vim.notify(string.format("Filemarks: %s already points to %s", key, resolved_file), vim.log.levels.INFO)
+        vim.notify(string.format("Filemarks: %s already points to %s", key, display_path), vim.log.levels.INFO)
         return
     end
     if marks[key] and marks[key] ~= resolved_file then
+        local current_display = format_path_for_project(marks[key], project)
+        local new_display = format_path_for_project(resolved_file, project)
         local choice = vim.fn.confirm(
-            string.format("Filemarks: %s currently points to\n%s\nReplace with\n%s?", key, marks[key], resolved_file),
+            string.format("Filemarks: %s currently points to\n%s\nReplace with\n%s?", key, current_display, new_display),
             "&Yes\n&No",
             1
         )
@@ -408,7 +432,7 @@ function M.add(key, file_path)
     marks[key] = resolved_file
     save_state()
     ensure_keymap(key)
-    vim.notify(string.format("Filemarks: added %s -> %s", key, resolved_file), vim.log.levels.INFO)
+    vim.notify(string.format("Filemarks: added %s -> %s", key, display_path), vim.log.levels.INFO)
 end
 
 function M.remove(key)
