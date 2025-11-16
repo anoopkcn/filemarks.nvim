@@ -16,7 +16,34 @@ local state = {
     action_keymaps = {},
     loaded = false,
     commands_installed = false,
+    filetype_autocmd = nil,
 }
+
+local comment_ns = vim.api.nvim_create_namespace("filemarks_comments")
+
+local function highlight_comments(buf)
+    if not buf or not vim.api.nvim_buf_is_valid(buf) then
+        return
+    end
+    vim.api.nvim_buf_clear_namespace(buf, comment_ns, 0, -1)
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    for idx, line in ipairs(lines) do
+        local start_col = line:find("#")
+        if start_col then
+            local leading = line:sub(1, start_col - 1)
+            if leading:match("^%s*$") then
+                vim.highlight.range(
+                    buf,
+                    comment_ns,
+                    "Comment",
+                    { idx - 1, start_col - 1 },
+                    { idx - 1, -1 },
+                    { inclusive = true }
+                )
+            end
+        end
+    end
+end
 
 local function normalize_path(path)
     if type(path) ~= "string" or path == "" then
@@ -241,6 +268,26 @@ local function install_commands()
     })
 end
 
+local function install_filetype_support()
+    if state.filetype_autocmd then
+        return
+    end
+    local group = vim.api.nvim_create_augroup("FilemarksFiletype", { clear = true })
+    state.filetype_autocmd = group
+    vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter", "TextChanged", "TextChangedI" }, {
+        group = group,
+        callback = function(ev)
+            if vim.bo[ev.buf].filetype ~= "filemarks" then
+                return
+            end
+            if ev.event == "FileType" then
+                vim.api.nvim_set_option_value("commentstring", "# %s", { buf = ev.buf })
+            end
+            highlight_comments(ev.buf)
+        end,
+    })
+end
+
 local function generate_editor_lines(project, marks)
     local lines = {
         string.format("# Filemarks for %s", project),
@@ -290,6 +337,7 @@ local function open_marks_editor(project, marks)
     vim.api.nvim_buf_set_var(buf, "filemarks_project", project)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, generate_editor_lines(project, marks))
     vim.api.nvim_set_option_value("modified", false, { buf = buf })
+    highlight_comments(buf)
 
     vim.api.nvim_create_autocmd("BufWriteCmd", {
         buffer = buf,
@@ -345,6 +393,17 @@ function M.add(key, file_path)
     if marks[key] == resolved_file then
         vim.notify(string.format("Filemarks: %s already points to %s", key, resolved_file), vim.log.levels.INFO)
         return
+    end
+    if marks[key] and marks[key] ~= resolved_file then
+        local choice = vim.fn.confirm(
+            string.format("Filemarks: %s currently points to\n%s\nReplace with\n%s?", key, marks[key], resolved_file),
+            "&Yes\n&No",
+            1
+        )
+        if choice ~= 1 then
+            vim.notify("Filemarks: keeping existing mark", vim.log.levels.INFO)
+            return
+        end
     end
     marks[key] = resolved_file
     save_state()
@@ -415,6 +474,7 @@ end
 function M.setup(opts)
     M.configure(opts or {})
     install_commands()
+    install_filetype_support()
 end
 
 return M
