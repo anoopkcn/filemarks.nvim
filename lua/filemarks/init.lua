@@ -347,13 +347,34 @@ local function parse_editor_buffer(buf, project)
 end
 
 local function open_marks_editor(project, marks)
+    local target_name = string.format("filemarks://%s", project)
+    local function find_existing_buffer()
+        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) == target_name then
+                return buf
+            end
+        end
+    end
+
+    local existing = find_existing_buffer()
+    if existing then
+        for _, win in ipairs(vim.api.nvim_list_wins()) do
+            if vim.api.nvim_win_get_buf(win) == existing then
+                vim.api.nvim_set_current_win(win)
+                return
+            end
+        end
+        vim.cmd(string.format("tab sbuffer %d", existing))
+        return
+    end
+
     vim.cmd("tabnew")
     local buf = vim.api.nvim_get_current_buf()
     vim.api.nvim_set_option_value("buftype", "acwrite", { buf = buf })
     vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
     vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
     vim.api.nvim_set_option_value("filetype", "filemarks", { buf = buf })
-    vim.api.nvim_buf_set_name(buf, string.format("filemarks://%s", project))
+    vim.api.nvim_buf_set_name(buf, target_name)
     vim.api.nvim_buf_set_var(buf, "filemarks_project", project)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, generate_editor_lines(project, marks))
     vim.api.nvim_set_option_value("modified", false, { buf = buf })
