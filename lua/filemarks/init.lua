@@ -356,8 +356,8 @@ end
 local function generate_editor_lines(project, marks)
     local lines = {
         string.format("# Filemarks for %s", project),
-        "# Format: <key><space><path>. Lines starting with # are ignored.",
-        "# Delete a line to remove it. Save (:w) to persist changes.",
+        "# Format: <key><space><path>. Lines starting with # are comments.",
+        "# Delete/Comment a line to remove it. Save to persist changes.",
         "",
     }
     local keys = vim.tbl_keys(marks or {})
