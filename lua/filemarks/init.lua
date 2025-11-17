@@ -440,7 +440,7 @@ function M.add(key, file_path)
         local current_display = format_path_for_project(marks[key], project)
         local new_display = format_path_for_project(resolved_file, project)
         local choice = vim.fn.confirm(
-            string.format("Filemarks: %s points to '%s' replace with '%s'?", key, current_display, new_display),
+            string.format("Filemarks: %s already points to '%s' replace with '%s'?", key, current_display, new_display),
             "&Yes\n&No",
             1
         )
