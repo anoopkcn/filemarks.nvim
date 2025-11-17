@@ -20,6 +20,7 @@ local state = {
 }
 
 local comment_ns = vim.api.nvim_create_namespace("filemarks_comments")
+local comment_watchers = {}
 
 local function format_path_for_project(path, project)
     if not path or not project then
@@ -39,28 +40,54 @@ local function format_path_for_project(path, project)
     return path
 end
 
-local function highlight_comments(buf)
+local function highlight_comments(buf, start_line, end_line)
     if not buf or not vim.api.nvim_buf_is_valid(buf) then
         return
     end
-    vim.api.nvim_buf_clear_namespace(buf, comment_ns, 0, -1)
-    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local total_lines = vim.api.nvim_buf_line_count(buf)
+    start_line = start_line or 0
+    end_line = end_line or total_lines
+    if start_line < 0 then
+        start_line = 0
+    end
+    if end_line < start_line then
+        end_line = start_line
+    end
+
+    vim.api.nvim_buf_clear_namespace(buf, comment_ns, start_line, end_line)
+    local lines = vim.api.nvim_buf_get_lines(buf, start_line, end_line, false)
     for idx, line in ipairs(lines) do
         local start_col = line:find("#")
         if start_col then
             local leading = line:sub(1, start_col - 1)
             if leading:match("^%s*$") then
+                local row = start_line + idx - 1
                 vim.highlight.range(
                     buf,
                     comment_ns,
                     "Comment",
-                    { idx - 1, start_col - 1 },
-                    { idx - 1, -1 },
+                    { row, start_col - 1 },
+                    { row, #line },
                     { inclusive = true }
                 )
             end
         end
     end
+end
+
+local function attach_comment_highlighter(buf)
+    if comment_watchers[buf] then
+        return
+    end
+    comment_watchers[buf] = true
+    vim.api.nvim_buf_attach(buf, false, {
+        on_lines = function(_, b, _, first, _, new_last)
+            highlight_comments(b, first, new_last)
+        end,
+        on_detach = function(_, b)
+            comment_watchers[b] = nil
+        end,
+    })
 end
 
 local function normalize_path(path)
@@ -315,16 +342,13 @@ local function install_filetype_support()
     end
     local group = vim.api.nvim_create_augroup("FilemarksFiletype", { clear = true })
     state.filetype_autocmd = group
-    vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter", "TextChanged", "TextChangedI" }, {
+    vim.api.nvim_create_autocmd("FileType", {
         group = group,
+        pattern = "filemarks",
         callback = function(ev)
-            if vim.bo[ev.buf].filetype ~= "filemarks" then
-                return
-            end
-            if ev.event == "FileType" then
-                vim.api.nvim_set_option_value("commentstring", "# %s", { buf = ev.buf })
-            end
+            vim.api.nvim_set_option_value("commentstring", "# %s", { buf = ev.buf })
             highlight_comments(ev.buf)
+            attach_comment_highlighter(ev.buf)
         end,
     })
 end
