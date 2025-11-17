@@ -74,6 +74,29 @@ local function normalize_path(path)
     return vim.fs.normalize(path)
 end
 
+local function focus_buffer_for_path(path)
+    local target = normalize_path(path)
+    if not target then
+        return false
+    end
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(buf) then
+            local name = vim.api.nvim_buf_get_name(buf)
+            if name and normalize_path(name) == target then
+                for _, win in ipairs(vim.api.nvim_list_wins()) do
+                    if vim.api.nvim_win_get_buf(win) == buf then
+                        vim.api.nvim_set_current_win(win)
+                        return true
+                    end
+                end
+                vim.api.nvim_cmd({ cmd = "buffer", args = { tostring(buf) } }, {})
+                return true
+            end
+        end
+    end
+    return false
+end
+
 local function detect_project(path)
     local target = path and vim.fn.fnamemodify(path, ":p:h") or nil
     local ok, root = pcall(vim.fs.root, target or 0, state.config.project_markers)
@@ -514,6 +537,9 @@ function M.open(key)
     local path = marks[key]
     if not path or path == "" then
         vim.notify(string.format("Filemarks: invalid path for %s", key), vim.log.levels.ERROR)
+        return
+    end
+    if focus_buffer_for_path(path) then
         return
     end
     vim.cmd({ cmd = "edit", args = { path } })
