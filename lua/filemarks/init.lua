@@ -310,7 +310,6 @@ local function generate_editor_lines(project, marks)
     local lines = {
         string.format("# Filemarks for %s", project),
         "# Format: <key><space><path>. Lines starting with # are ignored.",
-        "# <key> must be single digit/letter. <path> must be relative to the project.",
         "# Delete a line to remove it. Save (:w) to persist changes.",
         "",
     }
