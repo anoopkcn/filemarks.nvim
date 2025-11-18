@@ -393,7 +393,7 @@ local function parse_editor_buffer(buf, project)
 end
 
 local function open_marks_editor(project, marks)
-    local target_name = string.format("filemarks://%s", project)
+    local target_name = string.format("Filemarks://%s", project)
     local function find_existing_buffer()
         for _, buf in ipairs(vim.api.nvim_list_bufs()) do
             if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) == target_name then
