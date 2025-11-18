@@ -410,12 +410,12 @@ local function open_marks_editor(project, marks)
                 return
             end
         end
-        vim.cmd(string.format("tab sbuffer %d", existing))
+        vim.api.nvim_win_set_buf(0, existing)
         return
     end
 
-    vim.cmd("tabnew")
-    local buf = vim.api.nvim_get_current_buf()
+    local buf = vim.api.nvim_create_buf(true, true)
+    vim.api.nvim_win_set_buf(0, buf)
     vim.api.nvim_set_option_value("buftype", "acwrite", { buf = buf })
     vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
     vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
