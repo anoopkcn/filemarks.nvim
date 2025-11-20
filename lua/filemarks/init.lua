@@ -643,7 +643,12 @@ function M.open(key)
     if focus_buffer_for_path(resolved) then
         return
     end
-    vim.cmd({ cmd = "edit", args = { resolved } })
+    local cwd = normalize_path(vim.fn.getcwd())
+    local edit_arg = resolved
+    if cwd == project and type(path) == "string" and path ~= "" and not is_absolute_path(path) then
+        edit_arg = path
+    end
+    vim.cmd({ cmd = "edit", args = { edit_arg } })
 end
 
 function M.setup(opts)
