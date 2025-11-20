@@ -61,10 +61,6 @@ local function relativize_path(path, project)
     return path
 end
 
-local function format_path_for_project(path, project)
-    return relativize_path(path, project)
-end
-
 local function highlight_comments(buf, start_line, end_line)
     if not buf or not vim.api.nvim_buf_is_valid(buf) then
         return
@@ -432,7 +428,7 @@ local function generate_editor_lines(project, marks)
     local keys = vim.tbl_keys(marks or {})
     table.sort(keys)
     for _, key in ipairs(keys) do
-        local display_path = format_path_for_project(marks[key], project)
+        local display_path = relativize_path(marks[key], project)
         table.insert(lines, string.format("%s %s", key, display_path))
     end
     return lines
@@ -547,15 +543,15 @@ function M.add(key, file_path)
         return
     end
     local project = project_or_err
-    local display_path = format_path_for_project(resolved_file, project)
+    local display_path = relativize_path(resolved_file, project)
     local existing_value = marks[key]
     if mark_points_to_path(existing_value, project, resolved_file) then
         vim.notify(string.format("Filemarks: %s already points to %s", key, display_path), vim.log.levels.INFO)
         return
     end
     if existing_value then
-        local current_display = format_path_for_project(existing_value, project)
-        local new_display = format_path_for_project(resolved_file, project)
+        local current_display = relativize_path(existing_value, project)
+        local new_display = relativize_path(resolved_file, project)
         local choice = vim.fn.confirm(
             string.format(
                 "Filemarks: %s already points to '%s' replace with '%s'?",
