@@ -679,6 +679,13 @@ function M.open(key)
         vim.notify(string.format("Filemarks: unable to resolve %s for project", key), vim.log.levels.ERROR)
         return
     end
+
+    if is_directory(resolved) then
+        -- For directories, use Explore to open in netrw
+        vim.cmd({ cmd = "Explore", args = { resolved } })
+        return
+    end
+
     if focus_buffer_for_path(resolved) then
         return
     end
