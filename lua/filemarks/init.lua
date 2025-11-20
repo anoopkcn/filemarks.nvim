@@ -1,3 +1,7 @@
+-- LICENSE: MIT
+-- by @anoopkcn
+-- https://github.com/anoopkcn/dotfiles/blob/main/nvim/lua/filemarks/init.lua
+-- Description: A Neovim plugin to manage persistent marks for files and directories per project.
 local M = {}
 
 local uv = vim.uv or vim.loop
