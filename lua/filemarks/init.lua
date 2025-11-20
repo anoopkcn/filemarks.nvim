@@ -22,22 +22,47 @@ local state = {
 local comment_ns = vim.api.nvim_create_namespace("filemarks_comments")
 local comment_watchers = {}
 
-local function format_path_for_project(path, project)
-    if not path or not project then
+local function is_absolute_path(path)
+    if type(path) ~= "string" or path == "" then
+        return false
+    end
+    if path:sub(1, 1) == "/" or path:sub(1, 1) == "\\" then
+        return true
+    end
+    return path:match("^%a:[/\\]") ~= nil
+end
+
+local function relativize_path(path, project)
+    if type(path) ~= "string" or path == "" then
+        return path
+    end
+    if not project or project == "" then
+        return path
+    end
+    if not is_absolute_path(path) then
         return path
     end
     if path:sub(1, #project) == project then
+        local boundary = path:sub(#project + 1, #project + 1)
+        if boundary ~= "" and boundary ~= "/" and boundary ~= "\\" then
+            return path
+        end
         local suffix = path:sub(#project + 1)
         suffix = suffix:gsub("^[/\\]", "")
-        if suffix ~= "" then
-            return suffix
+        if suffix == "" then
+            return "."
         end
+        return suffix
     end
     local ok, rel = pcall(vim.fs.relpath, path, project)
-    if ok and type(rel) == "string" and rel ~= "" then
+    if ok and type(rel) == "string" and rel ~= "" and not vim.startswith(rel, "..") then
         return rel
     end
     return path
+end
+
+local function format_path_for_project(path, project)
+    return relativize_path(path, project)
 end
 
 local function highlight_comments(buf, start_line, end_line)
@@ -143,17 +168,48 @@ local function resolve_project_path(path, project)
     end
     if trimmed:sub(1, 1) == "~" then
         trimmed = vim.fn.expand(trimmed)
-    else
-        local is_abs = trimmed:sub(1, 1) == "/" or trimmed:match("^%a:[/\\]")
-        if not is_abs then
-            local base = project or detect_project()
-            if not base then
-                return nil
-            end
-            trimmed = vim.fs.joinpath(base, trimmed)
+    elseif not is_absolute_path(trimmed) then
+        local base = project or detect_project()
+        if not base then
+            return nil
         end
+        trimmed = vim.fs.joinpath(base, trimmed)
     end
     return normalize_path(trimmed)
+end
+
+local function canonicalize_project_marks(project, marks)
+    if not project or type(marks) ~= "table" then
+        return false
+    end
+    local updated = false
+    for key, stored in pairs(marks) do
+        if type(stored) == "string" and stored ~= "" then
+            local resolved = resolve_project_path(stored, project)
+            if resolved then
+                local storage_path = relativize_path(resolved, project)
+                if storage_path ~= stored then
+                    marks[key] = storage_path
+                    updated = true
+                end
+            end
+        end
+    end
+    return updated
+end
+
+local function mark_points_to_path(mark_path, project, absolute_target)
+    if type(mark_path) ~= "string" or mark_path == "" or not project then
+        return false
+    end
+    if type(absolute_target) ~= "string" or absolute_target == "" then
+        return false
+    end
+    local resolved = resolve_project_path(mark_path, project)
+    if not resolved then
+        return false
+    end
+    return resolved == absolute_target
 end
 
 local function get_marks(path_hint)
@@ -161,8 +217,12 @@ local function get_marks(path_hint)
     if not project then
         return nil, "Unable to determine project directory"
     end
-    state.data[project] = state.data[project] or {}
-    return state.data[project], project
+    local marks = state.data[project]
+    if type(marks) ~= "table" then
+        marks = {}
+        state.data[project] = marks
+    end
+    return marks, project
 end
 
 local function key_in_use(key)
@@ -246,10 +306,19 @@ local function load_state()
         end
     end
     uv.fs_close(fd)
-    for _, marks in pairs(state.data) do
-        for key in pairs(marks) do
-            ensure_keymap(key)
+    local needs_save = false
+    for project, marks in pairs(state.data) do
+        if type(marks) == "table" then
+            if canonicalize_project_marks(project, marks) then
+                needs_save = true
+            end
+            for key in pairs(marks) do
+                ensure_keymap(key)
+            end
         end
+    end
+    if needs_save then
+        save_state()
     end
 end
 
@@ -386,7 +455,7 @@ local function parse_editor_buffer(buf, project)
             if not resolved then
                 return nil, string.format("Could not resolve path on line %d", idx)
             end
-            parsed[key] = resolved
+            parsed[key] = relativize_path(resolved, project)
         end
     end
     return parsed
@@ -479,12 +548,13 @@ function M.add(key, file_path)
     end
     local project = project_or_err
     local display_path = format_path_for_project(resolved_file, project)
-    if marks[key] == resolved_file then
+    local existing_value = marks[key]
+    if mark_points_to_path(existing_value, project, resolved_file) then
         vim.notify(string.format("Filemarks: %s already points to %s", key, display_path), vim.log.levels.INFO)
         return
     end
-    if marks[key] and marks[key] ~= resolved_file then
-        local current_display = format_path_for_project(marks[key], project)
+    if existing_value then
+        local current_display = format_path_for_project(existing_value, project)
         local new_display = format_path_for_project(resolved_file, project)
         local choice = vim.fn.confirm(
             string.format(
@@ -500,7 +570,8 @@ function M.add(key, file_path)
             return
         end
     end
-    marks[key] = resolved_file
+    local stored_path = relativize_path(resolved_file, project)
+    marks[key] = stored_path
     save_state()
     ensure_keymap(key)
     vim.notify(string.format("Filemarks: added %s -> %s", key, display_path), vim.log.levels.INFO)
@@ -549,11 +620,12 @@ function M.open(key)
     if not key or key == "" then
         return
     end
-    local marks, err = get_marks()
+    local marks, project_or_err = get_marks()
     if not marks then
-        vim.notify(string.format("Filemarks: %s", err or "unknown error"), vim.log.levels.ERROR)
+        vim.notify(string.format("Filemarks: %s", project_or_err or "unknown error"), vim.log.levels.ERROR)
         return
     end
+    local project = project_or_err
     if not marks[key] then
         vim.notify(string.format("Filemarks: %s not set for this project", key), vim.log.levels.WARN)
         return
@@ -563,10 +635,15 @@ function M.open(key)
         vim.notify(string.format("Filemarks: invalid path for %s", key), vim.log.levels.ERROR)
         return
     end
-    if focus_buffer_for_path(path) then
+    local resolved = resolve_project_path(path, project)
+    if not resolved then
+        vim.notify(string.format("Filemarks: unable to resolve %s for project", key), vim.log.levels.ERROR)
         return
     end
-    vim.cmd({ cmd = "edit", args = { path } })
+    if focus_buffer_for_path(resolved) then
+        return
+    end
+    vim.cmd({ cmd = "edit", args = { resolved } })
 end
 
 function M.setup(opts)
