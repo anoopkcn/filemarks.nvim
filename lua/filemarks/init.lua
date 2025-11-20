@@ -109,7 +109,10 @@ local function normalize_path(path)
         return nil
     end
     local ok, resolved = pcall(uv.fs_realpath, path)
-    return ok and resolved and vim.fs.normalize(resolved) or vim.fs.normalize(path)
+    if ok and type(resolved) == "string" then
+        return vim.fs.normalize(resolved)
+    end
+    return vim.fs.normalize(path)
 end
 
 local function is_directory(path)
