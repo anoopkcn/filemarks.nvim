@@ -22,40 +22,38 @@ local state = {
 local comment_ns = vim.api.nvim_create_namespace("filemarks_comments")
 local comment_watchers = {}
 
+-- Check if path is absolute (Unix: /, Windows: \ or C:\)
 local function is_absolute_path(path)
     if type(path) ~= "string" or path == "" then
         return false
     end
-    if path:sub(1, 1) == "/" or path:sub(1, 1) == "\\" then
-        return true
-    end
-    return path:match("^%a:[/\\]") ~= nil
+    local first = path:sub(1, 1)
+    return first == "/" or first == "\\" or path:match("^%a:[/\\]") ~= nil
 end
 
 local function relativize_path(path, project)
-    if type(path) ~= "string" or path == "" then
-        return path
-    end
-    if not project or project == "" then
+    if type(path) ~= "string" or path == "" or not project or project == "" then
         return path
     end
     if not is_absolute_path(path) then
         return path
     end
-    if path:sub(1, #project) == project then
-        local boundary = path:sub(#project + 1, #project + 1)
-        if boundary ~= "" and boundary ~= "/" and boundary ~= "\\" then
-            return path
-        end
-        local suffix = path:sub(#project + 1)
-        suffix = suffix:gsub("^[/\\]", "")
-        if suffix == "" then
+
+    -- Check if path is within project directory
+    if vim.startswith(path, project) then
+        local boundary_idx = #project + 1
+        local boundary = path:sub(boundary_idx, boundary_idx)
+        if boundary == "" then
             return "."
         end
-        return suffix
+        if boundary == "/" or boundary == "\\" then
+            local rel = path:sub(boundary_idx + 1)
+            return rel ~= "" and rel or "."
+        end
     end
+
     local ok, rel = pcall(vim.fs.relpath, path, project)
-    if ok and type(rel) == "string" and rel ~= "" and not vim.startswith(rel, "..") then
+    if ok and rel and not vim.startswith(rel, "..") then
         return rel
     end
     return path
@@ -66,32 +64,23 @@ local function highlight_comments(buf, start_line, end_line)
         return
     end
     local total_lines = vim.api.nvim_buf_line_count(buf)
-    start_line = start_line or 0
-    end_line = end_line or total_lines
-    if start_line < 0 then
-        start_line = 0
-    end
-    if end_line < start_line then
-        end_line = start_line
-    end
+    start_line = math.max(start_line or 0, 0)
+    end_line = math.max(end_line or total_lines, start_line)
 
     vim.api.nvim_buf_clear_namespace(buf, comment_ns, start_line, end_line)
     local lines = vim.api.nvim_buf_get_lines(buf, start_line, end_line, false)
     for idx, line in ipairs(lines) do
         local start_col = line:find("#")
-        if start_col then
-            local leading = line:sub(1, start_col - 1)
-            if leading:match("^%s*$") then
-                local row = start_line + idx - 1
-                vim.highlight.range(
-                    buf,
-                    comment_ns,
-                    "Comment",
-                    { row, start_col - 1 },
-                    { row, #line },
-                    { inclusive = true }
-                )
-            end
+        if start_col and line:sub(1, start_col - 1):match("^%s*$") then
+            local row = start_line + idx - 1
+            vim.highlight.range(
+                buf,
+                comment_ns,
+                "Comment",
+                { row, start_col - 1 },
+                { row, #line },
+                { inclusive = true }
+            )
         end
     end
 end
@@ -116,10 +105,7 @@ local function normalize_path(path)
         return nil
     end
     local ok, resolved = pcall(uv.fs_realpath, path)
-    if ok and type(resolved) == "string" then
-        return vim.fs.normalize(resolved)
-    end
-    return vim.fs.normalize(path)
+    return ok and resolved and vim.fs.normalize(resolved) or vim.fs.normalize(path)
 end
 
 local function focus_buffer_for_path(path)
@@ -127,20 +113,19 @@ local function focus_buffer_for_path(path)
     if not target then
         return false
     end
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(buf) then
-            local name = vim.api.nvim_buf_get_name(buf)
-            if name and normalize_path(name) == target then
-                for _, win in ipairs(vim.api.nvim_list_wins()) do
-                    if vim.api.nvim_win_get_buf(win) == buf then
-                        vim.api.nvim_set_current_win(win)
-                        return true
-                    end
-                end
-                vim.api.nvim_cmd({ cmd = "buffer", args = { tostring(buf) } }, {})
+
+    local bufnr = vim.fn.bufnr(target)
+    if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
+        -- Check if buffer is visible in a window
+        for _, win in ipairs(vim.api.nvim_list_wins()) do
+            if vim.api.nvim_win_get_buf(win) == bufnr then
+                vim.api.nvim_set_current_win(win)
                 return true
             end
         end
+        -- Buffer exists but not visible - switch to it
+        vim.api.nvim_cmd({ cmd = "buffer", args = { tostring(bufnr) } }, {})
+        return true
     end
     return false
 end
@@ -148,10 +133,7 @@ end
 local function detect_project(path)
     local target = path and vim.fn.fnamemodify(path, ":p:h") or nil
     local ok, root = pcall(vim.fs.root, target or 0, state.config.project_markers)
-    if ok and root then
-        return normalize_path(root)
-    end
-    return normalize_path(vim.fn.getcwd())
+    return ok and root and normalize_path(root) or normalize_path(vim.fn.getcwd())
 end
 
 local function resolve_project_path(path, project)
@@ -194,20 +176,6 @@ local function canonicalize_project_marks(project, marks)
     return updated
 end
 
-local function mark_points_to_path(mark_path, project, absolute_target)
-    if type(mark_path) ~= "string" or mark_path == "" or not project then
-        return false
-    end
-    if type(absolute_target) ~= "string" or absolute_target == "" then
-        return false
-    end
-    local resolved = resolve_project_path(mark_path, project)
-    if not resolved then
-        return false
-    end
-    return resolved == absolute_target
-end
-
 local function get_marks(path_hint)
     local project = detect_project(path_hint)
     if not project then
@@ -232,18 +200,14 @@ end
 
 local function clear_keymap(key)
     local lhs = state.keymaps[key]
-    if not lhs then
-        return
+    if lhs then
+        pcall(vim.keymap.del, "n", lhs)
+        state.keymaps[key] = nil
     end
-    pcall(vim.keymap.del, "n", lhs)
-    state.keymaps[key] = nil
 end
 
 local function ensure_keymap(key)
-    if state.keymaps[key] then
-        return
-    end
-    if not state.config.goto_prefix or state.config.goto_prefix == "" then
+    if state.keymaps[key] or not state.config.goto_prefix or state.config.goto_prefix == "" then
         return
     end
     local lhs = state.config.goto_prefix .. key
@@ -254,14 +218,24 @@ local function ensure_keymap(key)
 end
 
 local function rebuild_jump_keymaps()
-    local keys = vim.tbl_keys(state.keymaps)
-    for _, key in ipairs(keys) do
-        clear_keymap(key)
-    end
+    -- Collect all keys that should exist
+    local should_exist = {}
     for _, marks in pairs(state.data) do
         for key in pairs(marks) do
-            ensure_keymap(key)
+            should_exist[key] = true
         end
+    end
+
+    -- Remove keymaps that shouldn't exist
+    for key in pairs(state.keymaps) do
+        if not should_exist[key] then
+            clear_keymap(key)
+        end
+    end
+
+    -- Ensure keymaps that should exist
+    for key in pairs(should_exist) do
+        ensure_keymap(key)
     end
 end
 
@@ -281,13 +255,14 @@ local function save_state()
     end
 end
 
+local FILE_READ_MODE = 420 -- octal 0644
 local function load_state()
     if state.loaded then
         return
     end
     state.loaded = true
     local path = state.config.storage_path
-    local fd = uv.fs_open(path, "r", 420)
+    local fd = uv.fs_open(path, "r", FILE_READ_MODE)
     if not fd then
         return
     end
@@ -320,10 +295,7 @@ end
 
 local function prompt_key(prompt)
     local key = vim.fn.input(prompt or "Mark key: ")
-    if key == "" then
-        return nil
-    end
-    return key
+    return key ~= "" and key or nil
 end
 
 local function reset_keymaps()
@@ -337,23 +309,23 @@ local function reset_keymaps()
     state.action_keymaps = {}
 end
 
+local ACTION_MAPPINGS = {
+    { "a", "add",    "Add filemark" },
+    { "r", "remove", "Remove filemark" },
+    { "l", "list",   "Edit filemarks" },
+}
+
 local function install_action_keymaps()
     local prefix = state.config.action_prefix
     if not prefix or prefix == "" then
         return
     end
-    local actions = {
-        { "a", function()
-            M.add()
-        end, "Add filemark" },
-        { "r", function()
-            M.remove()
-        end, "Remove filemark" },
-        { "l", M.list, "Edit filemarks" },
-    }
-    for _, action in ipairs(actions) do
-        local lhs = prefix .. action[1]
-        vim.keymap.set("n", lhs, action[2], { desc = "Filemarks: " .. action[3] })
+    for _, action in ipairs(ACTION_MAPPINGS) do
+        local key, method, desc = action[1], action[2], action[3]
+        local lhs = prefix .. key
+        vim.keymap.set("n", lhs, function()
+            M[method]()
+        end, { desc = "Filemarks: " .. desc })
         table.insert(state.action_keymaps, lhs)
     end
 end
@@ -365,9 +337,7 @@ local function install_commands()
     state.commands_installed = true
 
     vim.api.nvim_create_user_command("FilemarksAdd", function(opts)
-        local key = opts.fargs[1]
-        local target = opts.fargs[2]
-        M.add(key, target)
+        M.add(opts.fargs[1], opts.fargs[2])
     end, {
         desc = "Add/update a persistent filemark",
         nargs = "*",
@@ -375,16 +345,13 @@ local function install_commands()
     })
 
     vim.api.nvim_create_user_command("FilemarksRemove", function(opts)
-        local key = opts.fargs[1]
-        M.remove(key)
+        M.remove(opts.fargs[1])
     end, {
         desc = "Remove a filemark from the current project",
         nargs = "?",
     })
 
-    vim.api.nvim_create_user_command("FilemarksList", function()
-        M.list()
-    end, {
+    vim.api.nvim_create_user_command("FilemarksList", M.list, {
         desc = "Edit filemarks for the current project",
     })
 
@@ -419,19 +386,23 @@ local function install_filetype_support()
 end
 
 local function generate_editor_lines(project, marks)
-    local lines = {
+    local header = {
         string.format("# Filemarks for %s", project),
         "# Format: <key><space><path>. Lines starting with # are comments.",
         "# Delete/Comment a line to remove it. Save to persist changes.",
         "",
     }
+
     local keys = vim.tbl_keys(marks or {})
     table.sort(keys)
-    for _, key in ipairs(keys) do
+
+    local mark_lines = vim.tbl_map(function(key)
         local display_path = relativize_path(marks[key], project)
-        table.insert(lines, string.format("%s %s", key, display_path))
-    end
-    return lines
+        return string.format("%s %s", key, display_path)
+    end, keys)
+
+    vim.list_extend(header, mark_lines)
+    return header
 end
 
 local function parse_editor_buffer(buf, project)
@@ -459,15 +430,16 @@ end
 
 local function open_marks_editor(project, marks)
     local target_name = string.format("Filemarks://%s", project)
-    local function find_existing_buffer()
-        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-            if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) == target_name then
-                return buf
-            end
+
+    -- Find existing buffer inline
+    local existing = nil
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) == target_name then
+            existing = buf
+            break
         end
     end
 
-    local existing = find_existing_buffer()
     if existing then
         for _, win in ipairs(vim.api.nvim_list_wins()) do
             if vim.api.nvim_win_get_buf(win) == existing then
@@ -545,10 +517,15 @@ function M.add(key, file_path)
     local project = project_or_err
     local display_path = relativize_path(resolved_file, project)
     local existing_value = marks[key]
-    if mark_points_to_path(existing_value, project, resolved_file) then
-        vim.notify(string.format("Filemarks: %s already points to %s", key, display_path), vim.log.levels.INFO)
-        return
+
+    if existing_value and type(existing_value) == "string" and existing_value ~= "" then
+        local resolved_existing = resolve_project_path(existing_value, project)
+        if resolved_existing == resolved_file then
+            vim.notify(string.format("Filemarks: %s already points to %s", key, display_path), vim.log.levels.INFO)
+            return
+        end
     end
+
     if existing_value then
         local current_display = relativize_path(existing_value, project)
         local new_display = relativize_path(resolved_file, project)
