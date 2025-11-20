@@ -108,6 +108,14 @@ local function normalize_path(path)
     return ok and resolved and vim.fs.normalize(resolved) or vim.fs.normalize(path)
 end
 
+local function is_directory(path)
+    if type(path) ~= "string" or path == "" then
+        return false
+    end
+    local stat = uv.fs_stat(path)
+    return stat and stat.type == "directory"
+end
+
 local function focus_buffer_for_path(path)
     local target = normalize_path(path)
     if not target then
@@ -310,9 +318,10 @@ local function reset_keymaps()
 end
 
 local ACTION_MAPPINGS = {
-    { "a", "add",    "Add filemark" },
-    { "r", "remove", "Remove filemark" },
-    { "l", "list",   "Edit filemarks" },
+    { "a", "add",     "Add filemark" },
+    { "d", "add_dir", "Add directory mark" },
+    { "r", "remove",  "Remove filemark" },
+    { "l", "list",    "Edit filemarks" },
 }
 
 local function install_action_keymaps()
@@ -344,6 +353,14 @@ local function install_commands()
         complete = "file",
     })
 
+    vim.api.nvim_create_user_command("FilemarksAddDir", function(opts)
+        M.add_dir(opts.fargs[1], opts.fargs[2])
+    end, {
+        desc = "Add/update a persistent directory mark (detects netrw directory)",
+        nargs = "*",
+        complete = "dir",
+    })
+
     vim.api.nvim_create_user_command("FilemarksRemove", function(opts)
         M.remove(opts.fargs[1])
     end, {
@@ -363,7 +380,7 @@ local function install_commands()
         end
         M.open(key)
     end, {
-        desc = "Jump to the file referenced by a key",
+        desc = "Jump to the file/directory referenced by a key",
         nargs = 1,
     })
 end
@@ -389,7 +406,8 @@ local function generate_editor_lines(project, marks)
     local header = {
         string.format("# Filemarks for %s", project),
         "# Format: <key><space><path>. Lines starting with # are comments.",
-        "# Delete/Comment a line to remove it. Save to persist changes.",
+        "# Directories are shown with a trailing /. Delete/Comment a line to remove it.",
+        "# Save to persist changes.",
         "",
     }
 
@@ -397,7 +415,13 @@ local function generate_editor_lines(project, marks)
     table.sort(keys)
 
     local mark_lines = vim.tbl_map(function(key)
-        local display_path = relativize_path(marks[key], project)
+        local stored_path = marks[key]
+        local display_path = relativize_path(stored_path, project)
+        local resolved = resolve_project_path(stored_path, project)
+        -- Add trailing / for directories
+        if resolved and is_directory(resolved) and not vim.endswith(display_path, "/") then
+            display_path = display_path .. "/"
+        end
         return string.format("%s %s", key, display_path)
     end, keys)
 
@@ -548,6 +572,48 @@ function M.add(key, file_path)
     save_state()
     ensure_keymap(key)
     vim.notify(string.format("Filemarks: added %s -> %s", key, display_path), vim.log.levels.INFO)
+end
+
+function M.add_dir(key, dir_path)
+    load_state()
+    key = key or prompt_key("Add directory mark key: ")
+    if not key then
+        return
+    end
+    -- Default to current directory if no path provided
+    local target_dir = dir_path
+    if not target_dir or target_dir == "" then
+        -- Check if we're in a netrw buffer
+        local ok, netrw_dir = pcall(vim.api.nvim_buf_get_var, 0, "netrw_curdir")
+        if ok and netrw_dir and netrw_dir ~= "" then
+            target_dir = netrw_dir
+        else
+            -- Check if current buffer is a directory
+            local current_file = vim.api.nvim_buf_get_name(0)
+            if current_file and current_file ~= "" then
+                if is_directory(current_file) then
+                    target_dir = current_file
+                else
+                    target_dir = vim.fn.fnamemodify(current_file, ":p:h")
+                end
+            else
+                target_dir = vim.fn.getcwd()
+            end
+        end
+    end
+
+    local resolved_dir = normalize_path(target_dir)
+    if not resolved_dir or resolved_dir == "" then
+        vim.notify("Filemarks: unable to determine directory path", vim.log.levels.WARN)
+        return
+    end
+
+    if not is_directory(resolved_dir) then
+        vim.notify(string.format("Filemarks: '%s' is not a directory", target_dir), vim.log.levels.WARN)
+        return
+    end
+
+    M.add(key, resolved_dir)
 end
 
 function M.remove(key)
