@@ -1,0 +1,652 @@
+*filemarks.txt*  Persistent file and directory marks per project
+
+Author:  @anoopkcn <https://github.com/anoopkcn>
+License: MIT
+
+==============================================================================
+CONTENTS                                                  *filemarks-contents*
+
+1. Introduction ............................ |filemarks-introduction|
+2. Quick Start ............................. |filemarks-quickstart|
+3. Commands ................................ |filemarks-commands|
+    3.1 FilemarksAdd ....................... |:FilemarksAdd|
+    3.2 FilemarksAddDir .................... |:FilemarksAddDir|
+    3.3 FilemarksRemove .................... |:FilemarksRemove|
+    3.4 FilemarksList ...................... |:FilemarksList|
+    3.5 FilemarksOpen ...................... |:FilemarksOpen|
+4. Keybindings ............................. |filemarks-keybindings|
+5. Configuration ........................... |filemarks-configuration|
+6. Editor Interface ........................ |filemarks-editor|
+7. Functions ............................... |filemarks-functions|
+8. Storage Format .......................... |filemarks-storage|
+9. Examples ................................ |filemarks-examples|
+
+==============================================================================
+1. INTRODUCTION                                      *filemarks-introduction*
+
+Filemarks provides project-scoped persistent marks for files and directories.
+Unlike Vim's built-in marks, filemarks:
+  • Persist across Neovim sessions
+  • Are project-specific (automatic project detection)
+  • Work with both files and directories
+  • Support custom keybindings for quick access
+  • Can be edited in a dedicated buffer
+  • Store relative paths within projects
+
+Use cases:
+  • Mark important project files (e.g., config, main entry point)
+  • Create shortcuts to frequently accessed directories
+  • Navigate large codebases efficiently
+  • Maintain per-project bookmarks
+
+==============================================================================
+2. QUICK START                                        *filemarks-quickstart*
+
+Basic setup: >
+    require('filemarks').setup()
+<
+Default keybindings (with leader = space):
+    <leader>Ma      Add filemark for current file
+    <leader>Md      Add directory mark
+    <leader>Mr      Remove filemark
+    <leader>Ml      Edit filemarks for project
+
+    <leader>m{key}  Jump to mark {key}
+
+Example workflow: >
+    1. Open your main project file
+    2. Press <leader>Ma
+    3. Enter "m" as the key
+    4. Now <leader>mm jumps to this file from anywhere in the project
+
+    5. In a directory you want to mark
+    6. Press <leader>Md
+    7. Enter "d" as the key
+    8. Now <leader>md opens that directory in netrw
+<
+==============================================================================
+3. COMMANDS                                              *filemarks-commands*
+
+------------------------------------------------------------------------------
+3.1 FilemarksAdd                                            *:FilemarksAdd*
+
+Add or update a filemark for the current file or a specified path.
+
+Syntax: >
+    :FilemarksAdd [key] [file_path]
+<
+If no key is provided, you will be prompted. If no file_path is provided,
+marks the current buffer's file.
+
+Examples: >
+    :FilemarksAdd                    " Prompt for key, mark current file
+    :FilemarksAdd m                  " Mark current file as 'm'
+    :FilemarksAdd c src/config.lua   " Mark config.lua as 'c'
+    :FilemarksAdd i ~/init.lua       " Mark init.lua as 'i' (absolute path)
+<
+Behavior:
+  • If key already exists, prompts for confirmation before overwriting
+  • Automatically creates jump keybinding (e.g., <leader>mm)
+  • Stores relative path if file is within project
+  • Paths are normalized and resolved
+  • Changes are saved immediately
+
+------------------------------------------------------------------------------
+3.2 FilemarksAddDir                                      *:FilemarksAddDir*
+
+Add or update a directory mark.
+
+Syntax: >
+    :FilemarksAddDir [key] [dir_path]
+<
+If no directory is specified, uses the current context:
+  1. Netrw directory (if in netrw buffer)
+  2. Current file's directory
+  3. Current working directory
+
+Examples: >
+    :FilemarksAddDir                 " Prompt for key, mark current context
+    :FilemarksAddDir d               " Mark current directory as 'd'
+    :FilemarksAddDir t tests/        " Mark tests/ directory as 't'
+    :FilemarksAddDir s ~/src         " Mark ~/src as 's'
+<
+Opening directory marks:
+When you jump to a directory mark with |:FilemarksOpen| or the jump
+keybinding, it opens the directory in netrw (|:Explore|).
+
+------------------------------------------------------------------------------
+3.3 FilemarksRemove                                      *:FilemarksRemove*
+
+Remove a filemark from the current project.
+
+Syntax: >
+    :FilemarksRemove [key]
+<
+If no key is provided, you will be prompted.
+
+Examples: >
+    :FilemarksRemove                 " Prompt for key to remove
+    :FilemarksRemove m               " Remove mark 'm'
+<
+Behavior:
+  • Only removes mark from current project
+  • Removes jump keybinding if key is not used in any other project
+  • If removing last mark, cleans up project entry
+  • Changes are saved immediately
+
+------------------------------------------------------------------------------
+3.4 FilemarksList                                        *:FilemarksList*
+
+Open an editor buffer to view and edit all filemarks for the current project.
+
+Syntax: >
+    :FilemarksList
+<
+Opens a special buffer with filetype 'filemarks' showing all marks for the
+current project. See |filemarks-editor| for details on the editor interface.
+
+Examples: >
+    :FilemarksList
+<
+------------------------------------------------------------------------------
+3.5 FilemarksOpen                                        *:FilemarksOpen*
+
+Jump to a file or directory referenced by a key.
+
+Syntax: >
+    :FilemarksOpen {key}
+<
+The key argument is required.
+
+Examples: >
+    :FilemarksOpen m                 " Jump to mark 'm'
+    :FilemarksOpen config            " Jump to mark 'config'
+<
+Behavior:
+  • For files: opens in current window or switches to existing buffer
+  • For directories: opens in netrw
+  • Uses relative paths when in the same project
+  • Validates mark exists before opening
+
+Note: Typically accessed via jump keybindings (e.g., <leader>mm) rather than
+directly calling this command.
+
+==============================================================================
+4. KEYBINDINGS                                        *filemarks-keybindings*
+
+Filemarks creates two types of keybindings:
+
+------------------------------------------------------------------------------
+Action Keybindings~
+                                                  *filemarks-action-prefix*
+Prefix: |g:filemarks_action_prefix| (default: "<leader>M")
+
+    <prefix>a       Add filemark for current file
+    <prefix>d       Add directory mark
+    <prefix>r       Remove filemark
+    <prefix>l       List/edit filemarks
+
+Examples with default prefix: >
+    <leader>Ma      Add filemark
+    <leader>Md      Add directory mark
+    <leader>Mr      Remove filemark
+    <leader>Ml      Edit filemarks
+<
+------------------------------------------------------------------------------
+Jump Keybindings~
+                                                   *filemarks-goto-prefix*
+Prefix: |g:filemarks_goto_prefix| (default: "<leader>m")
+
+Jump keybindings are automatically created when you add marks:
+    <prefix>{key}   Jump to mark {key}
+
+Examples with default prefix: >
+    <leader>mm      Jump to mark 'm'
+    <leader>mc      Jump to mark 'c'
+    <leader>mtest   Jump to mark 'test'
+<
+Jump keybindings are:
+  • Created automatically when marks are added
+  • Removed automatically when no project uses that key
+  • Persisted across Neovim sessions
+  • Project-aware (opens the marked file for current project)
+
+Disabling keybindings:~
+To disable action or jump keybindings, set the prefix to empty string: >
+    require('filemarks').setup({
+        action_prefix = "",  -- Disable action keybindings
+        goto_prefix = "",    -- Disable jump keybindings
+    })
+<
+==============================================================================
+5. CONFIGURATION                                    *filemarks-configuration*
+
+Configure filemarks in your init.lua: >
+    require('filemarks').setup({
+        goto_prefix = "<leader>m",
+        action_prefix = "<leader>M",
+        storage_path = vim.fn.stdpath("state") .. "/filemarks.json",
+        project_markers = { ".git", ".hg", ".svn" },
+    })
+<
+------------------------------------------------------------------------------
+                                                  *g:filemarks_goto_prefix*
+goto_prefix~
+    Type: string
+    Default: "<leader>m"
+
+Prefix for jump keybindings. Each mark gets a keybinding: {prefix}{key}
+
+Set to empty string "" to disable jump keybindings.
+
+Examples: >
+    goto_prefix = "<leader>g"   -- <leader>gm, <leader>gc, etc.
+    goto_prefix = "'"           -- 'm, 'c, etc. (like vim marks)
+    goto_prefix = ""            -- Disable jump keybindings
+<
+------------------------------------------------------------------------------
+                                                *g:filemarks_action_prefix*
+action_prefix~
+    Type: string
+    Default: "<leader>M"
+
+Prefix for action keybindings (add, remove, list).
+
+Set to empty string "" to disable action keybindings.
+
+Examples: >
+    action_prefix = "<leader>f"  -- <leader>fa, <leader>fd, etc.
+    action_prefix = ""           -- Disable action keybindings
+<
+------------------------------------------------------------------------------
+                                                  *g:filemarks_storage_path*
+storage_path~
+    Type: string
+    Default: vim.fn.stdpath("state") .. "/filemarks.json"
+
+Path where filemarks are stored. Typically evaluates to:
+    ~/.local/state/nvim/filemarks.json
+
+Change if you want to store marks in a different location or sync across
+machines: >
+    storage_path = "~/Dropbox/.config/nvim/filemarks.json"
+<
+------------------------------------------------------------------------------
+                                               *g:filemarks_project_markers*
+project_markers~
+    Type: table (list of strings)
+    Default: { ".git", ".hg", ".svn" }
+
+Files or directories used to detect project root. Filemarks searches upward
+from the current file to find a directory containing one of these markers.
+
+Add custom markers for your workflow: >
+    project_markers = { ".git", "pyproject.toml", "package.json" }
+<
+If no marker is found, falls back to current working directory.
+
+==============================================================================
+6. EDITOR INTERFACE                                      *filemarks-editor*
+
+The filemarks editor provides a buffer-based interface to view and edit all
+marks for the current project.
+
+Opening the editor: >
+    :FilemarksList
+    " or
+    <leader>Ml      (with default action_prefix)
+<
+Editor format:~
+
+The editor buffer shows marks in this format: >
+    # Filemarks for /path/to/project
+    # Format: <key><space><path>. Lines starting with # are comments.
+    # Directories are shown with a trailing /
+    Delete/Comment a line to remove it. Save to persist changes.
+
+    c src/config.lua
+    d tests/
+    m main.go
+    t ../tools/
+<
+Editor operations:~
+
+Add a mark:~
+    1. Add a new line: {key} {path}
+    2. Save the buffer (:w)
+
+Remove a mark:~
+    1. Delete the line or comment it out with #
+    2. Save the buffer (:w)
+
+Modify a mark:~
+    1. Edit the path on the line
+    2. Save the buffer (:w)
+
+File paths:~
+  • Relative paths are relative to project root
+  • Absolute paths are allowed
+  • Tilde (~) expands to home directory
+  • Directories should have trailing / for clarity (auto-detected)
+
+Comments:~
+Lines starting with # are ignored. Use for organization: >
+    # Configuration files
+    c config.lua
+    e .env
+
+    # Entry points
+    m main.go
+    t main_test.go
+
+    # Directories
+    d tests/
+<
+Validation:~
+When saving, the editor validates:
+  • Format: each line must be "{key} {path}"
+  • No duplicate keys
+  • Paths must be resolvable
+
+If validation fails, you'll see an error and buffer remains modified. Fix the
+error and save again.
+
+Special behavior:~
+  • Buffer has filetype 'filemarks' with custom syntax highlighting
+  • Buffer type is 'acwrite' (write triggers custom save logic)
+  • Changes apply immediately to current session
+  • Jump keybindings are updated automatically
+
+==============================================================================
+7. FUNCTIONS                                            *filemarks-functions*
+
+The module exposes Lua functions for programmatic use.
+
+------------------------------------------------------------------------------
+                                                         *filemarks.setup()*
+filemarks.setup({opts})
+    Initialize the filemarks plugin with optional configuration.
+
+    Parameters: ~
+        {opts}  (table|nil) Configuration options (see |filemarks-configuration|)
+
+    Example: >
+        require('filemarks').setup({
+            goto_prefix = "<leader>j",
+            project_markers = { ".git", "package.json" },
+        })
+<
+    Note: This also installs commands and filetype support. Call once in your
+    init.lua.
+
+------------------------------------------------------------------------------
+                                                      *filemarks.configure()*
+filemarks.configure({opts})
+    Reconfigure filemarks at runtime. Unlike |filemarks.setup()|, this does
+    not install commands or filetype support.
+
+    Parameters: ~
+        {opts}  (table|nil) Configuration options
+
+    Example: >
+        -- Change goto prefix at runtime
+        require('filemarks').configure({
+            goto_prefix = "'",
+        })
+<
+------------------------------------------------------------------------------
+                                                           *filemarks.add()*
+filemarks.add({key}, {file_path})
+    Add or update a filemark.
+
+    Parameters: ~
+        {key}       (string|nil) Mark key. If nil, prompts user.
+        {file_path} (string|nil) File to mark. If nil, uses current buffer.
+
+    Example: >
+        local filemarks = require('filemarks')
+
+        -- Mark current file
+        filemarks.add('m')
+
+        -- Mark specific file
+        filemarks.add('c', 'src/config.lua')
+
+        -- Prompt for key
+        filemarks.add()
+<
+------------------------------------------------------------------------------
+                                                       *filemarks.add_dir()*
+filemarks.add_dir({key}, {dir_path})
+    Add or update a directory mark.
+
+    Parameters: ~
+        {key}      (string|nil) Mark key. If nil, prompts user.
+        {dir_path} (string|nil) Directory to mark. If nil, uses current context.
+
+    Example: >
+        local filemarks = require('filemarks')
+
+        -- Mark current directory context
+        filemarks.add_dir('d')
+
+        -- Mark specific directory
+        filemarks.add_dir('t', 'tests/')
+
+        -- Mark from netrw buffer
+        -- (automatically detects netrw directory)
+        filemarks.add_dir('src')
+<
+------------------------------------------------------------------------------
+                                                        *filemarks.remove()*
+filemarks.remove({key})
+    Remove a filemark from the current project.
+
+    Parameters: ~
+        {key}  (string|nil) Mark key. If nil, prompts user.
+
+    Example: >
+        local filemarks = require('filemarks')
+
+        -- Remove specific mark
+        filemarks.remove('m')
+
+        -- Prompt for key
+        filemarks.remove()
+<
+------------------------------------------------------------------------------
+                                                          *filemarks.list()*
+filemarks.list()
+    Open the filemarks editor buffer for the current project.
+
+    Example: >
+        require('filemarks').list()
+<
+    See |filemarks-editor| for details.
+
+------------------------------------------------------------------------------
+                                                          *filemarks.open()*
+filemarks.open({key})
+    Jump to the file or directory referenced by a key.
+
+    Parameters: ~
+        {key}  (string) Mark key (required)
+
+    Example: >
+        local filemarks = require('filemarks')
+
+        -- Jump to mark 'm'
+        filemarks.open('m')
+
+        -- Open from user input
+        local key = vim.fn.input('Jump to mark: ')
+        if key ~= '' then
+            filemarks.open(key)
+        end
+<
+==============================================================================
+8. STORAGE FORMAT                                        *filemarks-storage*
+
+Filemarks are stored in a JSON file at |g:filemarks_storage_path|.
+
+Default location: >
+    ~/.local/state/nvim/filemarks.json
+<
+File structure: >
+    {
+      "/absolute/path/to/project1": {
+        "m": "src/main.lua",
+        "c": "config/init.lua",
+        "d": "tests/"
+      },
+      "/absolute/path/to/project2": {
+        "m": "main.go",
+        "t": "main_test.go"
+      }
+    }
+<
+Key points:
+  • Top-level keys are absolute project root paths
+  • Each project has a map of mark keys to file/directory paths
+  • Paths within projects are stored as relative when possible
+  • Absolute paths are used for marks outside project
+  • File is auto-created on first save
+
+Path resolution:
+When loading, filemarks canonicalizes paths to ensure consistency:
+  • Relative paths are resolved from project root
+  • Symlinks are resolved to real paths
+  • Paths are normalized (remove .., ., etc.)
+
+Syncing across machines:~
+If you want to sync marks across machines, you can:
+  1. Store filemarks.json in a synced directory (Dropbox, git repo, etc.)
+  2. Set |g:filemarks_storage_path| to that location
+
+Note: Project paths must be consistent across machines for this to work
+correctly. Consider using relative paths within projects.
+
+Manual editing:~
+You can manually edit the JSON file, but ensure:
+  • Valid JSON syntax
+  • Project paths are absolute
+  • Mark paths exist
+
+Filemarks will validate and normalize paths on next load.
+
+==============================================================================
+9. EXAMPLES                                              *filemarks-examples*
+
+Basic usage~
+>
+    " 1. Open your project's main file
+    :edit src/main.lua
+
+    " 2. Mark it as 'm'
+    :FilemarksAdd m
+
+    " 3. Open a config file
+    :edit config/settings.lua
+
+    " 4. Mark it as 'c'
+    :FilemarksAdd c
+
+    " 5. Now jump between them
+    <leader>mm      " Jump to main.lua
+    <leader>mc      " Jump to settings.lua
+<
+Directory marks~
+>
+    " 1. Open netrw in a directory
+    :Explore tests/
+
+    " 2. Mark this directory
+    :FilemarksAddDir t
+
+    " 3. From any file, jump back to tests directory
+    <leader>mt
+<
+Keybinding setup~
+>
+    -- Custom keybinding prefix
+    require('filemarks').setup({
+        goto_prefix = "'",        -- Use ' like vim marks
+        action_prefix = "<leader>b",  -- <leader>ba, <leader>bd, etc.
+    })
+
+    -- Now marks work like:
+    -- 'm      Jump to mark 'm'
+    -- 'c      Jump to mark 'c'
+    -- <leader>ba   Add mark
+    -- <leader>bd   Add directory mark
+<
+Custom project markers~
+>
+    -- Detect project root by package.json or Cargo.toml
+    require('filemarks').setup({
+        project_markers = { ".git", "package.json", "Cargo.toml" },
+    })
+<
+Integrate with fuzzy finder~
+>
+    -- Create a command to fuzzy-select marks
+    vim.api.nvim_create_user_command('FilemarksSelect', function()
+        local filemarks = require('filemarks')
+        local marks, project = filemarks.get_marks()
+
+        if not marks or vim.tbl_isempty(marks) then
+            vim.notify('No filemarks in current project', vim.log.levels.INFO)
+            return
+        end
+
+        local items = {}
+        for key, path in pairs(marks) do
+            table.insert(items, string.format('%s -> %s', key, path))
+        end
+
+        vim.ui.select(items, { prompt = 'Select mark:' }, function(choice)
+            if choice then
+                local key = choice:match('^(%S+)')
+                if key then filemarks.open(key) end
+            end
+        end)
+    end, {})
+<
+Per-project shortcuts~
+>
+    -- Mark important files in a web project
+    " In a Rails/Node.js project:
+    m -> app/main.js          (main entry point)
+    c -> config/database.yml  (config)
+    r -> config/routes.rb     (routes)
+    t -> spec/                (tests directory)
+    d -> db/                  (database directory)
+
+    " In a Go project:
+    m -> cmd/main.go
+    c -> config.yaml
+    t -> main_test.go
+    d -> internal/
+<
+Batch editing with FilemarksList~
+>
+    " 1. Open the editor
+    :FilemarksList
+
+    " 2. Edit the buffer
+    # Core files
+    m src/main.lua
+    c config.lua
+
+    # Tests
+    t tests/
+    u tests/unit/
+    i tests/integration/
+
+    " 3. Save
+    :w
+
+    " All marks are now updated and keybindings created
+<
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
