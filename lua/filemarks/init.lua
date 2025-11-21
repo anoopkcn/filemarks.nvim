@@ -459,49 +459,17 @@ local function parse_editor_buffer(buf, project)
     return parsed
 end
 
-local function open_marks_editor(project, marks)
-    local target_name = string.format("Filemarks://%s", project)
-
-    -- Find existing buffer inline
-    local existing = nil
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) == target_name then
-            existing = buf
-            break
-        end
-    end
-
-    if existing then
-        for _, win in ipairs(vim.api.nvim_list_wins()) do
-            if vim.api.nvim_win_get_buf(win) == existing then
-                vim.api.nvim_set_current_win(win)
-                return
-            end
-        end
-        vim.api.nvim_win_set_buf(0, existing)
-        return
-    end
-
-    local buf = vim.api.nvim_create_buf(true, true)
-    vim.api.nvim_win_set_buf(0, buf)
-    vim.api.nvim_set_option_value("buftype", "acwrite", { buf = buf })
-    vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
-    vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
-    vim.api.nvim_set_option_value("filetype", "filemarks", { buf = buf })
-    vim.api.nvim_buf_set_name(buf, target_name)
-    vim.api.nvim_buf_set_var(buf, "filemarks_project", project)
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, generate_editor_lines(project, marks))
-    vim.api.nvim_set_option_value("modified", false, { buf = buf })
-    highlight_comments(buf)
-
-    -- Keep the buffer always unmodified so it can be closed/switched away from freely
+local function setup_filemarks_buffer_autocmds(buf)
     local augroup = vim.api.nvim_create_augroup("FilemarksBuffer_" .. buf, { clear = true })
 
-    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    -- Clear modified flag before leaving the buffer to allow switching without :w or !
+    vim.api.nvim_create_autocmd("BufLeave", {
         group = augroup,
         buffer = buf,
         callback = function()
-            vim.api.nvim_set_option_value("modified", false, { buf = buf })
+            if vim.api.nvim_buf_is_valid(buf) then
+                vim.api.nvim_set_option_value("modified", false, { buf = buf })
+            end
         end,
     })
 
@@ -529,6 +497,44 @@ local function open_marks_editor(project, marks)
             vim.notify("Filemarks: saved changes", vim.log.levels.INFO)
         end,
     })
+end
+
+local function open_marks_editor(project, marks)
+    local target_name = string.format("Filemarks://%s", project)
+
+    -- Find existing buffer inline
+    local existing = nil
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) == target_name then
+            existing = buf
+            break
+        end
+    end
+
+    if existing then
+        for _, win in ipairs(vim.api.nvim_list_wins()) do
+            if vim.api.nvim_win_get_buf(win) == existing then
+                vim.api.nvim_set_current_win(win)
+                return
+            end
+        end
+        vim.api.nvim_win_set_buf(0, existing)
+        return
+    end
+
+    local buf = vim.api.nvim_create_buf(true, true)
+    vim.api.nvim_win_set_buf(0, buf)
+    vim.api.nvim_set_option_value("buftype", "acwrite", { buf = buf })
+    vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
+    vim.api.nvim_set_option_value("bufhidden", "hide", { buf = buf })
+    vim.api.nvim_set_option_value("filetype", "filemarks", { buf = buf })
+    vim.api.nvim_buf_set_name(buf, target_name)
+    vim.api.nvim_buf_set_var(buf, "filemarks_project", project)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, generate_editor_lines(project, marks))
+    vim.api.nvim_set_option_value("modified", false, { buf = buf })
+    highlight_comments(buf)
+
+    setup_filemarks_buffer_autocmds(buf)
 end
 
 function M.configure(opts)
