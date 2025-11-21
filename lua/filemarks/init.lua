@@ -462,12 +462,17 @@ end
 local function setup_filemarks_buffer_autocmds(buf)
     local augroup = vim.api.nvim_create_augroup("FilemarksBuffer_" .. buf, { clear = true })
 
-    -- Clear modified flag before leaving the buffer to allow switching without :w or !
-    vim.api.nvim_create_autocmd("BufLeave", {
+    -- Notify user about unsaved changes when closing the buffer
+    vim.api.nvim_create_autocmd("BufUnload", {
         group = augroup,
         buffer = buf,
         callback = function()
             if vim.api.nvim_buf_is_valid(buf) then
+                local is_modified = vim.api.nvim_get_option_value("modified", { buf = buf })
+                if is_modified then
+                    vim.notify("Filemarks: buffer closed without saving - changes discarded", vim.log.levels.WARN)
+                end
+                -- Clear the flag to allow the buffer to close
                 vim.api.nvim_set_option_value("modified", false, { buf = buf })
             end
         end,
