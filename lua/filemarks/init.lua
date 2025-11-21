@@ -5,6 +5,7 @@
 local M = {}
 
 local uv = vim.uv or vim.loop
+local EDITOR_DIRTY_FLAG = "filemarks_dirty"
 
 local default_config = {
     goto_prefix = "<leader>m",
@@ -25,6 +26,37 @@ local state = {
 
 local comment_ns = vim.api.nvim_create_namespace("filemarks_comments")
 local comment_watchers = {}
+
+local function clear_editor_dirty(buf)
+    if not buf or not vim.api.nvim_buf_is_valid(buf) then
+        return
+    end
+    if not pcall(vim.api.nvim_buf_get_var, buf, "filemarks_project") then
+        return
+    end
+    pcall(vim.api.nvim_buf_set_var, buf, EDITOR_DIRTY_FLAG, false)
+    vim.api.nvim_set_option_value("modified", false, { buf = buf })
+end
+
+local function mark_editor_dirty(buf)
+    if not buf or not vim.api.nvim_buf_is_valid(buf) then
+        return
+    end
+    local ok, ready = pcall(vim.api.nvim_buf_get_var, buf, "filemarks_initialized")
+    if not (ok and ready) then
+        return
+    end
+    pcall(vim.api.nvim_buf_set_var, buf, EDITOR_DIRTY_FLAG, true)
+    vim.api.nvim_set_option_value("modified", false, { buf = buf })
+end
+
+local function editor_has_unsaved_changes(buf)
+    if not buf or not vim.api.nvim_buf_is_valid(buf) then
+        return false
+    end
+    local ok, dirty = pcall(vim.api.nvim_buf_get_var, buf, EDITOR_DIRTY_FLAG)
+    return ok and dirty == true
+end
 
 -- Check if path is absolute (Unix: /, Windows: \ or C:\)
 local function is_absolute_path(path)
@@ -97,6 +129,7 @@ local function attach_comment_highlighter(buf)
     vim.api.nvim_buf_attach(buf, false, {
         on_lines = function(_, b, _, first, _, new_last)
             highlight_comments(b, first, new_last)
+            mark_editor_dirty(b)
         end,
         on_detach = function(_, b)
             comment_watchers[b] = nil
@@ -468,12 +501,11 @@ local function setup_filemarks_buffer_autocmds(buf)
         buffer = buf,
         callback = function()
             if vim.api.nvim_buf_is_valid(buf) then
-                local is_modified = vim.api.nvim_get_option_value("modified", { buf = buf })
-                if is_modified then
+                local had_changes = editor_has_unsaved_changes(buf)
+                if had_changes then
                     vim.notify("Filemarks: buffer closed without saving - changes discarded", vim.log.levels.WARN)
                 end
-                -- Clear the flag to allow the buffer to close
-                vim.api.nvim_set_option_value("modified", false, { buf = buf })
+                clear_editor_dirty(buf)
             end
         end,
     })
@@ -499,6 +531,7 @@ local function setup_filemarks_buffer_autocmds(buf)
             end
             save_state()
             rebuild_jump_keymaps()
+            clear_editor_dirty(buf)
             vim.notify("Filemarks: saved changes", vim.log.levels.INFO)
         end,
     })
@@ -535,6 +568,7 @@ local function open_marks_editor(project, marks)
     vim.api.nvim_set_option_value("filetype", "filemarks", { buf = buf })
     vim.api.nvim_buf_set_name(buf, target_name)
     vim.api.nvim_buf_set_var(buf, "filemarks_project", project)
+    vim.api.nvim_buf_set_var(buf, EDITOR_DIRTY_FLAG, false)
     local lines = generate_editor_lines(project, marks)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
     vim.api.nvim_set_option_value("modified", false, { buf = buf })
@@ -552,6 +586,7 @@ local function open_marks_editor(project, marks)
     end
 
     setup_filemarks_buffer_autocmds(buf)
+    vim.api.nvim_buf_set_var(buf, "filemarks_initialized", true)
 end
 
 function M.configure(opts)
