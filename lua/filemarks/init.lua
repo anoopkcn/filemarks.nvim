@@ -414,7 +414,7 @@ local function generate_editor_lines(project, marks)
         string.format("# Filemarks for %s", project),
         "# Format: <key><space><path>. Lines starting with # are comments.",
         "# Directories are shown with a trailing /",
-        "Delete/Comment a line to remove it. Save to persist changes.",
+        "# Delete/Comment a line to remove it. Save to persist changes.",
         "",
     }
 
