@@ -182,7 +182,7 @@ The editor buffer format:
 # Filemarks for /path/to/project
 # Format: <key><space><path>. Lines starting with # are comments.
 # Directories are shown with a trailing /
-Delete/Comment a line to remove it. Save to persist changes.
+# Delete/Comment a line to remove it. Save to persist changes.
 
 c src/config.lua
 d tests/
