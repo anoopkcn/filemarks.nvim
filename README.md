@@ -333,7 +333,3 @@ MIT
 ## Author
 
 [@anoopkcn](https://github.com/anoopkcn)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
