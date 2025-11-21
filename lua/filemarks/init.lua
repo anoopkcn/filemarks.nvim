@@ -139,7 +139,7 @@ local function focus_buffer_for_path(path)
             end
         end
         -- Buffer exists but not visible - switch to it
-        vim.api.nvim_cmd({ cmd = "buffer", args = { tostring(bufnr) } }, {})
+        vim.api.nvim_cmd({ cmd = "buffer", args = { tostring(bufnr) }, bang = true }, {})
         return true
     end
     return false
@@ -689,7 +689,7 @@ function M.open(key)
 
     if is_directory(resolved) then
         -- For directories, use Explore to open in netrw
-        vim.cmd({ cmd = "Explore", args = { resolved } })
+        vim.cmd({ cmd = "Explore", args = { resolved }, bang = true })
         return
     end
 
@@ -701,7 +701,7 @@ function M.open(key)
     if cwd == project and type(path) == "string" and path ~= "" and not is_absolute_path(path) then
         edit_arg = path
     end
-    vim.cmd({ cmd = "edit", args = { edit_arg } })
+    vim.cmd({ cmd = "edit", args = { edit_arg }, bang = true })
 end
 
 function M.setup(opts)
