@@ -11,6 +11,18 @@ A Neovim plugin for managing persistent, project-scoped file and directory bookm
 - **Buffer-based editor**: Edit all marks for a project in a dedicated buffer
 - **Relative paths**: Stores paths relative to project root for portability
 
+**Comparison with Vim's built-in marks**
+
+| Feature | Vim marks | filemarks.nvim |
+|---------|-----------|----------------|
+| Persist across sessions | Limited (uppercase marks only) | Yes (all marks) |
+| Project-scoped | No | Yes |
+| Directory support | No | Yes |
+| Custom keybindings | No | Yes |
+| Buffer-based editor | No | Yes |
+| Relative paths | No | Yes |
+
+
 ## Installation
 
 ### Using neovim native [vim.pack](https://neovim.io/doc/user/pack.html#vim.pack)
@@ -314,17 +326,6 @@ require('filemarks').setup({
 ```
 
 2. Ensure project paths are consistent across machines, or use relative paths within projects.
-
-## Comparison with Vim's built-in marks
-
-| Feature | Vim marks | filemarks.nvim |
-|---------|-----------|----------------|
-| Persist across sessions | Limited (uppercase marks only) | Yes (all marks) |
-| Project-scoped | No | Yes |
-| Directory support | No | Yes |
-| Custom keybindings | No | Yes |
-| Buffer-based editor | No | Yes |
-| Relative paths | No | Yes |
 
 ## License
 
