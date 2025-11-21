@@ -530,9 +530,21 @@ local function open_marks_editor(project, marks)
     vim.api.nvim_set_option_value("filetype", "filemarks", { buf = buf })
     vim.api.nvim_buf_set_name(buf, target_name)
     vim.api.nvim_buf_set_var(buf, "filemarks_project", project)
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, generate_editor_lines(project, marks))
+    local lines = generate_editor_lines(project, marks)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
     vim.api.nvim_set_option_value("modified", false, { buf = buf })
     highlight_comments(buf)
+
+    -- Position cursor on first mark line (first non-comment, non-empty line)
+    if marks and not vim.tbl_isempty(marks) then
+        for i, line in ipairs(lines) do
+            local trimmed = vim.trim(line)
+            if trimmed ~= "" and not vim.startswith(trimmed, "#") then
+                vim.api.nvim_win_set_cursor(0, { i, 0 })
+                break
+            end
+        end
+    end
 
     setup_filemarks_buffer_autocmds(buf)
 end
