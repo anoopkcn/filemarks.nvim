@@ -139,7 +139,7 @@ local function focus_buffer_for_path(path)
             end
         end
         -- Buffer exists but not visible - switch to it
-        vim.cmd("buffer! " .. bufnr)
+        vim.cmd("buffer " .. bufnr)
         return true
     end
     return false
@@ -494,7 +494,19 @@ local function open_marks_editor(project, marks)
     vim.api.nvim_set_option_value("modified", false, { buf = buf })
     highlight_comments(buf)
 
+    -- Keep the buffer always unmodified so it can be closed/switched away from freely
+    local augroup = vim.api.nvim_create_augroup("FilemarksBuffer_" .. buf, { clear = true })
+
+    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+        group = augroup,
+        buffer = buf,
+        callback = function()
+            vim.api.nvim_set_option_value("modified", false, { buf = buf })
+        end,
+    })
+
     vim.api.nvim_create_autocmd("BufWriteCmd", {
+        group = augroup,
         buffer = buf,
         callback = function()
             local ok, project_var = pcall(vim.api.nvim_buf_get_var, buf, "filemarks_project")
@@ -514,7 +526,6 @@ local function open_marks_editor(project, marks)
             end
             save_state()
             rebuild_jump_keymaps()
-            vim.api.nvim_set_option_value("modified", false, { buf = buf })
             vim.notify("Filemarks: saved changes", vim.log.levels.INFO)
         end,
     })
@@ -689,7 +700,7 @@ function M.open(key)
 
     if is_directory(resolved) then
         -- For directories, use Explore to open in netrw
-        vim.cmd("Explore! " .. vim.fn.fnameescape(resolved))
+        vim.cmd("Explore " .. vim.fn.fnameescape(resolved))
         return
     end
 
@@ -701,7 +712,7 @@ function M.open(key)
     if cwd == project and type(path) == "string" and path ~= "" and not is_absolute_path(path) then
         edit_arg = path
     end
-    vim.cmd("edit! " .. vim.fn.fnameescape(edit_arg))
+    vim.cmd("edit " .. vim.fn.fnameescape(edit_arg))
 end
 
 function M.setup(opts)
