@@ -188,7 +188,7 @@ Open an editor buffer to view and edit all marks for the current project.
 
 ```vim
 :FilemarksList
-:rightbelow vertical FilemarksList   " Use command modifiers to choose the split
+:rightbelow vertical FilemarksList   " Use command modifiers to choose the split/tab
 ```
 
 The editor buffer format:
