@@ -105,7 +105,7 @@ require('filemarks').setup({
   -- Examples:
   --   "rightbelow vsplit"
   --   function() vim.cmd("topleft split") end
-  list_open_cmd = "rightbelow vsplit",
+  list_open_cmd = nil,
 })
 ```
 
