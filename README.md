@@ -101,6 +101,11 @@ require('filemarks').setup({
   action_prefix = "<leader>M",    -- Prefix for action keybindings
   storage_path = vim.fn.stdpath("state") .. "/filemarks.json",
   project_markers = { ".git", ".hg", ".svn" },  -- Files/dirs that mark project root
+  -- Command (string) or function used to open the list buffer in a window.
+  -- Examples:
+  --   "rightbelow vsplit"
+  --   function() vim.cmd("topleft split") end
+  list_open_cmd = nil,
 })
 ```
 
@@ -130,6 +135,15 @@ require('filemarks').setup({
 require('filemarks').setup({
   project_markers = { ".git", "package.json", "Cargo.toml", "pyproject.toml" },
 })
+
+### Choose where the list opens
+
+```lua
+require('filemarks').setup({
+  -- Open the list in a rightbelow vertical split by default
+  list_open_cmd = "rightbelow vsplit",
+})
+```
 ```
 
 ## Commands
@@ -174,6 +188,7 @@ Open an editor buffer to view and edit all marks for the current project.
 
 ```vim
 :FilemarksList
+:rightbelow vertical FilemarksList   " Use command modifiers to choose the split
 ```
 
 The editor buffer format:

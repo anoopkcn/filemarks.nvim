@@ -11,6 +11,8 @@ local default_config = {
     action_prefix = "<leader>M",
     storage_path = vim.fn.stdpath("state") .. "/filemarks.json",
     project_markers = { ".git", ".hg", ".svn" },
+    -- Command or function used to position the list buffer (e.g. "rightbelow vsplit")
+    list_open_cmd = nil,
 }
 
 local state = {
@@ -494,33 +496,74 @@ local function setup_filemarks_buffer_autocmds(buf)
     })
 end
 
-local function open_marks_editor(project, marks)
+local function find_marks_buffer(project)
     local target_name = string.format("Filemarks://%s", project)
-
-    -- Find existing buffer inline
-    local existing = nil
+    local existing, existing_win = nil, nil
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) == target_name then
+            existing, existing_win = buf, win
+            break
+        end
+    end
+    if existing then
+        return existing, existing_win
+    end
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
         if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) == target_name then
             existing = buf
             break
         end
     end
+    return existing, existing_win
+end
+
+local function open_marks_editor(project, marks, cmd_opts)
+    local target_name = string.format("Filemarks://%s", project)
+    local existing, existing_win = find_marks_buffer(project)
+    if existing_win then
+        vim.api.nvim_set_current_win(existing_win)
+        apply_comment_match(existing_win)
+        return
+    end
+
+    -- Respect user command modifiers first (e.g. :rightbelow vertical FilemarksList)
+    local target_win = nil
+    if cmd_opts and cmd_opts.mods and cmd_opts.mods ~= "" then
+        local ok = pcall(vim.api.nvim_cmd, { cmd = "new" }, { mods = cmd_opts.smods })
+        if ok then
+            target_win = vim.api.nvim_get_current_win()
+        end
+    end
+
+    -- Fall back to config-driven opener when no command modifiers were provided
+    if not target_win then
+        local open_cmd = state.config.list_open_cmd
+        if type(open_cmd) == "function" then
+            local ok, result = pcall(open_cmd)
+            if ok and type(result) == "number" and vim.api.nvim_win_is_valid(result) then
+                target_win = result
+            else
+                target_win = vim.api.nvim_get_current_win()
+            end
+        elseif type(open_cmd) == "string" and open_cmd ~= "" then
+            pcall(vim.cmd, open_cmd)
+            target_win = vim.api.nvim_get_current_win()
+        end
+    end
+
+    if not target_win or not vim.api.nvim_win_is_valid(target_win) then
+        target_win = vim.api.nvim_get_current_win()
+    end
 
     if existing then
-        for _, win in ipairs(vim.api.nvim_list_wins()) do
-            if vim.api.nvim_win_get_buf(win) == existing then
-                vim.api.nvim_set_current_win(win)
-                apply_comment_match(win)
-                return
-            end
-        end
-        vim.api.nvim_win_set_buf(0, existing)
-        apply_comment_match(vim.api.nvim_get_current_win())
+        vim.api.nvim_win_set_buf(target_win, existing)
+        apply_comment_match(target_win)
         return
     end
 
     local buf = vim.api.nvim_create_buf(true, true)
-    vim.api.nvim_win_set_buf(0, buf)
+    vim.api.nvim_win_set_buf(target_win, buf)
     vim.api.nvim_set_option_value("buftype", "acwrite", { buf = buf })
     vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
     vim.api.nvim_set_option_value("bufhidden", "hide", { buf = buf })
@@ -534,14 +577,14 @@ local function open_marks_editor(project, marks)
     end
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
     vim.api.nvim_set_option_value("modified", false, { buf = buf })
-    apply_comment_match(vim.api.nvim_get_current_win())
+    apply_comment_match(target_win)
 
     -- Position cursor on first mark line (first non-comment, non-empty line)
     if marks and not vim.tbl_isempty(marks) then
         for i, line in ipairs(lines) do
             local trimmed = vim.trim(line)
             if trimmed ~= "" and not vim.startswith(trimmed, "#") then
-                vim.api.nvim_win_set_cursor(0, { i, 0 })
+                vim.api.nvim_win_set_cursor(target_win, { i, 0 })
                 break
             end
         end
@@ -681,7 +724,7 @@ function M.remove(key)
     vim.notify(string.format("Filemarks: removed %s", key), vim.log.levels.INFO)
 end
 
-function M.list()
+function M.list(opts)
     load_state()
     local marks, project_or_err = get_marks()
     if not marks then
@@ -689,7 +732,7 @@ function M.list()
         return
     end
     local project = project_or_err
-    open_marks_editor(project, marks)
+    open_marks_editor(project, marks, opts)
 end
 
 function M.open(key)
