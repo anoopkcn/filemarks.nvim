@@ -5,7 +5,6 @@
 local M = {}
 
 local uv = vim.uv or vim.loop
-local EDITOR_DIRTY_FLAG = "filemarks_dirty"
 
 local default_config = {
     goto_prefix = "<leader>m",
@@ -25,46 +24,7 @@ local state = {
 }
 
 local header_ns = vim.api.nvim_create_namespace("filemarks_header")
-local change_watchers = {}
 local comment_matches = {}
-
-local function clear_editor_dirty(buf)
-    if not buf or not vim.api.nvim_buf_is_valid(buf) then
-        return
-    end
-    if not pcall(vim.api.nvim_buf_get_var, buf, "filemarks_project") then
-        return
-    end
-    pcall(vim.api.nvim_buf_set_var, buf, EDITOR_DIRTY_FLAG, false)
-    vim.api.nvim_set_option_value("modified", false, { buf = buf })
-end
-
-local function mark_editor_dirty(buf)
-    if not buf or not vim.api.nvim_buf_is_valid(buf) then
-        return
-    end
-    local ok, ready = pcall(vim.api.nvim_buf_get_var, buf, "filemarks_initialized")
-    if not (ok and ready) then
-        return
-    end
-    pcall(vim.api.nvim_buf_set_var, buf, EDITOR_DIRTY_FLAG, true)
-    vim.api.nvim_set_option_value("modified", true, { buf = buf })
-end
-
-local function attach_change_watcher(buf)
-    if change_watchers[buf] then
-        return
-    end
-    change_watchers[buf] = true
-    vim.api.nvim_buf_attach(buf, false, {
-        on_lines = function(_, b)
-            mark_editor_dirty(b)
-        end,
-        on_detach = function(_, b)
-            change_watchers[b] = nil
-        end,
-    })
-end
 
 local function apply_header_virtual_text(buf, project)
     if not buf or not vim.api.nvim_buf_is_valid(buf) or not project then
@@ -117,8 +77,7 @@ local function editor_has_unsaved_changes(buf)
     if not buf or not vim.api.nvim_buf_is_valid(buf) then
         return false
     end
-    local ok, dirty = pcall(vim.api.nvim_buf_get_var, buf, EDITOR_DIRTY_FLAG)
-    return ok and dirty == true
+    return vim.api.nvim_get_option_value("modified", { buf = buf }) == true
 end
 
 -- Check if path is absolute (Unix: /, Windows: \ or C:\)
@@ -458,7 +417,6 @@ local function install_filetype_support()
         callback = function(ev)
             vim.api.nvim_set_option_value("commentstring", "# %s", { buf = ev.buf })
             apply_comment_match(vim.api.nvim_get_current_win())
-            attach_change_watcher(ev.buf)
         end,
     })
 end
@@ -513,11 +471,10 @@ local function setup_filemarks_buffer_autocmds(buf)
         buffer = buf,
         callback = function()
             if vim.api.nvim_buf_is_valid(buf) then
-                local had_changes = editor_has_unsaved_changes(buf)
-                if had_changes then
+                if editor_has_unsaved_changes(buf) then
                     vim.notify("Filemarks: buffer closed without saving - changes discarded", vim.log.levels.WARN)
                 end
-                clear_editor_dirty(buf)
+                vim.api.nvim_set_option_value("modified", false, { buf = buf })
             end
         end,
     })
@@ -543,7 +500,7 @@ local function setup_filemarks_buffer_autocmds(buf)
             end
             save_state()
             rebuild_jump_keymaps()
-            clear_editor_dirty(buf)
+            vim.api.nvim_set_option_value("modified", false, { buf = buf })
             vim.notify("Filemarks: saved changes", vim.log.levels.INFO)
         end,
     })
@@ -569,7 +526,6 @@ local function open_marks_editor(project, marks)
         end
         vim.api.nvim_set_option_value("commentstring", "# %s", { buf = existing })
         apply_header_virtual_text(existing, project_for_header)
-        attach_change_watcher(existing)
         for _, win in ipairs(vim.api.nvim_list_wins()) do
             if vim.api.nvim_win_get_buf(win) == existing then
                 vim.api.nvim_set_current_win(win)
@@ -591,7 +547,6 @@ local function open_marks_editor(project, marks)
     vim.api.nvim_set_option_value("commentstring", "# %s", { buf = buf })
     vim.api.nvim_buf_set_name(buf, target_name)
     vim.api.nvim_buf_set_var(buf, "filemarks_project", project)
-    vim.api.nvim_buf_set_var(buf, EDITOR_DIRTY_FLAG, false)
     local lines = generate_editor_lines(project, marks)
     if vim.tbl_isempty(lines) then
         lines = { "" }
@@ -599,7 +554,6 @@ local function open_marks_editor(project, marks)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
     apply_header_virtual_text(buf, project)
     vim.api.nvim_set_option_value("modified", false, { buf = buf })
-    attach_change_watcher(buf)
     apply_comment_match(vim.api.nvim_get_current_win())
 
     -- Position cursor on first mark line (first non-comment, non-empty line)
