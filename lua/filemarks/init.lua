@@ -23,35 +23,7 @@ local state = {
     filetype_autocmd = nil,
 }
 
-local header_ns = vim.api.nvim_create_namespace("filemarks_header")
 local comment_matches = {}
-
-local function apply_header_virtual_text(buf, project)
-    if not buf or not vim.api.nvim_buf_is_valid(buf) or not project then
-        return
-    end
-
-    local header_lines = {
-        string.format("# Filemarks for %s", project),
-        "# Format: <key><space><path>. Lines starting with # are comments.",
-        "# Directories are shown with a trailing /",
-        "# Delete/Comment a line to remove it. Save to persist changes.",
-        "",
-    }
-
-    vim.api.nvim_buf_clear_namespace(buf, header_ns, 0, -1)
-
-    local virt_lines = {}
-    for _, text in ipairs(header_lines) do
-        table.insert(virt_lines, { { text, "Comment" } })
-    end
-
-    vim.api.nvim_buf_set_extmark(buf, header_ns, 0, 0, {
-        virt_lines = virt_lines,
-        virt_lines_above = true,
-        virt_lines_leftcol = true,
-    })
-end
 
 local function apply_comment_match(win)
     if not win or not vim.api.nvim_win_is_valid(win) then
@@ -71,24 +43,6 @@ local function apply_comment_match(win)
         return vim.fn.matchadd("Comment", "^\\s*#.*")
     end)
     comment_matches[win] = id
-end
-
-local function refresh_filemarks_view(win, buf)
-    if not buf or not vim.api.nvim_buf_is_valid(buf) then
-        return
-    end
-    local ok, project = pcall(vim.api.nvim_buf_get_var, buf, "filemarks_project")
-    if not ok or not project then
-        return
-    end
-    vim.api.nvim_set_option_value("commentstring", "# %s", { buf = buf })
-    local has_header = #vim.api.nvim_buf_get_extmarks(buf, header_ns, 0, -1, { limit = 1 }) > 0
-    if not has_header then
-        apply_header_virtual_text(buf, project)
-    end
-    if win and vim.api.nvim_win_is_valid(win) and not comment_matches[win] then
-        apply_comment_match(win)
-    end
 end
 
 local function editor_has_unsaved_changes(buf)
@@ -433,19 +387,28 @@ local function install_filetype_support()
         group = group,
         pattern = "filemarks",
         callback = function(ev)
-            refresh_filemarks_view(vim.api.nvim_get_current_win(), ev.buf)
+            vim.api.nvim_set_option_value("commentstring", "# %s", { buf = ev.buf })
+            apply_comment_match(vim.api.nvim_get_current_win())
         end,
     })
     vim.api.nvim_create_autocmd("BufWinEnter", {
         group = group,
         pattern = "Filemarks://*",
         callback = function(ev)
-            refresh_filemarks_view(ev.win, ev.buf)
+            apply_comment_match(ev.win)
         end,
     })
 end
 
 local function generate_editor_lines(project, marks)
+    local header = {
+        string.format("# Filemarks for %s", project),
+        "# Format: <key><space><path>. Lines starting with # are comments.",
+        "# Directories are shown with a trailing /",
+        "# Delete/Comment a line to remove it. Save to persist changes.",
+        "",
+    }
+
     local keys = vim.tbl_keys(marks or {})
     table.sort(keys)
 
@@ -460,7 +423,8 @@ local function generate_editor_lines(project, marks)
         return string.format("%s %s", key, display_path)
     end, keys)
 
-    return mark_lines
+    vim.list_extend(header, mark_lines)
+    return header
 end
 
 local function parse_editor_buffer(buf, project)
@@ -543,21 +507,15 @@ local function open_marks_editor(project, marks)
     end
 
     if existing then
-        local project_for_header = project
-        local ok, stored_project = pcall(vim.api.nvim_buf_get_var, existing, "filemarks_project")
-        if ok and stored_project then
-            project_for_header = stored_project
-        end
-        refresh_filemarks_view(vim.api.nvim_get_current_win(), existing)
         for _, win in ipairs(vim.api.nvim_list_wins()) do
             if vim.api.nvim_win_get_buf(win) == existing then
                 vim.api.nvim_set_current_win(win)
-                refresh_filemarks_view(win, existing)
+                apply_comment_match(win)
                 return
             end
         end
         vim.api.nvim_win_set_buf(0, existing)
-        refresh_filemarks_view(vim.api.nvim_get_current_win(), existing)
+        apply_comment_match(vim.api.nvim_get_current_win())
         return
     end
 
@@ -575,9 +533,8 @@ local function open_marks_editor(project, marks)
         lines = { "" }
     end
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-    apply_header_virtual_text(buf, project)
-    apply_comment_match(vim.api.nvim_get_current_win())
     vim.api.nvim_set_option_value("modified", false, { buf = buf })
+    apply_comment_match(vim.api.nvim_get_current_win())
 
     -- Position cursor on first mark line (first non-comment, non-empty line)
     if marks and not vim.tbl_isempty(marks) then
