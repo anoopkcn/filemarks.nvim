@@ -24,8 +24,9 @@ local state = {
     filetype_autocmd = nil,
 }
 
-local comment_ns = vim.api.nvim_create_namespace("filemarks_comments")
-local comment_watchers = {}
+local header_ns = vim.api.nvim_create_namespace("filemarks_header")
+local change_watchers = {}
+local comment_matches = {}
 
 local function clear_editor_dirty(buf)
     if not buf or not vim.api.nvim_buf_is_valid(buf) then
@@ -47,7 +48,69 @@ local function mark_editor_dirty(buf)
         return
     end
     pcall(vim.api.nvim_buf_set_var, buf, EDITOR_DIRTY_FLAG, true)
-    vim.api.nvim_set_option_value("modified", false, { buf = buf })
+    vim.api.nvim_set_option_value("modified", true, { buf = buf })
+end
+
+local function attach_change_watcher(buf)
+    if change_watchers[buf] then
+        return
+    end
+    change_watchers[buf] = true
+    vim.api.nvim_buf_attach(buf, false, {
+        on_lines = function(_, b)
+            mark_editor_dirty(b)
+        end,
+        on_detach = function(_, b)
+            change_watchers[b] = nil
+        end,
+    })
+end
+
+local function apply_header_virtual_text(buf, project)
+    if not buf or not vim.api.nvim_buf_is_valid(buf) or not project then
+        return
+    end
+
+    local header_lines = {
+        string.format("# Filemarks for %s", project),
+        "# Format: <key><space><path>. Lines starting with # are comments.",
+        "# Directories are shown with a trailing /",
+        "# Delete/Comment a line to remove it. Save to persist changes.",
+        "",
+    }
+
+    vim.api.nvim_buf_clear_namespace(buf, header_ns, 0, -1)
+
+    local virt_lines = {}
+    for _, text in ipairs(header_lines) do
+        table.insert(virt_lines, { { text, "Comment" } })
+    end
+
+    vim.api.nvim_buf_set_extmark(buf, header_ns, 0, 0, {
+        virt_lines = virt_lines,
+        virt_lines_above = true,
+        virt_lines_leftcol = true,
+    })
+end
+
+local function apply_comment_match(win)
+    if not win or not vim.api.nvim_win_is_valid(win) then
+        return
+    end
+    local buf = vim.api.nvim_win_get_buf(win)
+    if not buf or not vim.api.nvim_buf_is_valid(buf) then
+        return
+    end
+
+    local existing = comment_matches[win]
+    if existing then
+        pcall(vim.fn.matchdelete, existing, win)
+    end
+
+    local id = vim.api.nvim_win_call(win, function()
+        return vim.fn.matchadd("Comment", "^\\s*#.*")
+    end)
+    comment_matches[win] = id
 end
 
 local function editor_has_unsaved_changes(buf)
@@ -93,48 +156,6 @@ local function relativize_path(path, project)
         return rel
     end
     return path
-end
-
-local function highlight_comments(buf, start_line, end_line)
-    if not buf or not vim.api.nvim_buf_is_valid(buf) then
-        return
-    end
-    local total_lines = vim.api.nvim_buf_line_count(buf)
-    start_line = math.max(start_line or 0, 0)
-    end_line = math.max(end_line or total_lines, start_line)
-
-    vim.api.nvim_buf_clear_namespace(buf, comment_ns, start_line, end_line)
-    local lines = vim.api.nvim_buf_get_lines(buf, start_line, end_line, false)
-    for idx, line in ipairs(lines) do
-        local start_col = line:find("#")
-        if start_col and line:sub(1, start_col - 1):match("^%s*$") then
-            local row = start_line + idx - 1
-            vim.highlight.range(
-                buf,
-                comment_ns,
-                "Comment",
-                { row, start_col - 1 },
-                { row, #line },
-                { inclusive = true }
-            )
-        end
-    end
-end
-
-local function attach_comment_highlighter(buf)
-    if comment_watchers[buf] then
-        return
-    end
-    comment_watchers[buf] = true
-    vim.api.nvim_buf_attach(buf, false, {
-        on_lines = function(_, b, _, first, _, new_last)
-            highlight_comments(b, first, new_last)
-            mark_editor_dirty(b)
-        end,
-        on_detach = function(_, b)
-            comment_watchers[b] = nil
-        end,
-    })
 end
 
 local function normalize_path(path)
@@ -436,21 +457,13 @@ local function install_filetype_support()
         pattern = "filemarks",
         callback = function(ev)
             vim.api.nvim_set_option_value("commentstring", "# %s", { buf = ev.buf })
-            highlight_comments(ev.buf)
-            attach_comment_highlighter(ev.buf)
+            apply_comment_match(vim.api.nvim_get_current_win())
+            attach_change_watcher(ev.buf)
         end,
     })
 end
 
 local function generate_editor_lines(project, marks)
-    local header = {
-        string.format("# Filemarks for %s", project),
-        "# Format: <key><space><path>. Lines starting with # are comments.",
-        "# Directories are shown with a trailing /",
-        "# Delete/Comment a line to remove it. Save to persist changes.",
-        "",
-    }
-
     local keys = vim.tbl_keys(marks or {})
     table.sort(keys)
 
@@ -465,8 +478,7 @@ local function generate_editor_lines(project, marks)
         return string.format("%s %s", key, display_path)
     end, keys)
 
-    vim.list_extend(header, mark_lines)
-    return header
+    return mark_lines
 end
 
 local function parse_editor_buffer(buf, project)
@@ -550,13 +562,23 @@ local function open_marks_editor(project, marks)
     end
 
     if existing then
+        local project_for_header = project
+        local ok, stored_project = pcall(vim.api.nvim_buf_get_var, existing, "filemarks_project")
+        if ok and stored_project then
+            project_for_header = stored_project
+        end
+        vim.api.nvim_set_option_value("commentstring", "# %s", { buf = existing })
+        apply_header_virtual_text(existing, project_for_header)
+        attach_change_watcher(existing)
         for _, win in ipairs(vim.api.nvim_list_wins()) do
             if vim.api.nvim_win_get_buf(win) == existing then
                 vim.api.nvim_set_current_win(win)
+                apply_comment_match(win)
                 return
             end
         end
         vim.api.nvim_win_set_buf(0, existing)
+        apply_comment_match(vim.api.nvim_get_current_win())
         return
     end
 
@@ -566,13 +588,19 @@ local function open_marks_editor(project, marks)
     vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
     vim.api.nvim_set_option_value("bufhidden", "hide", { buf = buf })
     vim.api.nvim_set_option_value("filetype", "filemarks", { buf = buf })
+    vim.api.nvim_set_option_value("commentstring", "# %s", { buf = buf })
     vim.api.nvim_buf_set_name(buf, target_name)
     vim.api.nvim_buf_set_var(buf, "filemarks_project", project)
     vim.api.nvim_buf_set_var(buf, EDITOR_DIRTY_FLAG, false)
     local lines = generate_editor_lines(project, marks)
+    if vim.tbl_isempty(lines) then
+        lines = { "" }
+    end
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    apply_header_virtual_text(buf, project)
     vim.api.nvim_set_option_value("modified", false, { buf = buf })
-    highlight_comments(buf)
+    attach_change_watcher(buf)
+    apply_comment_match(vim.api.nvim_get_current_win())
 
     -- Position cursor on first mark line (first non-comment, non-empty line)
     if marks and not vim.tbl_isempty(marks) then
