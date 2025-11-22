@@ -12,7 +12,7 @@ local default_config = {
     storage_path = vim.fn.stdpath("state") .. "/filemarks.json",
     project_markers = { ".git", ".hg", ".svn" },
     -- Command or function used to position the list buffer (e.g. "rightbelow vsplit")
-    list_open_cmd = nil,
+    list_open_cmd = "rightbelow",
 }
 
 local state = {
