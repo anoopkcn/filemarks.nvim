@@ -73,6 +73,24 @@ local function apply_comment_match(win)
     comment_matches[win] = id
 end
 
+local function refresh_filemarks_view(win, buf)
+    if not buf or not vim.api.nvim_buf_is_valid(buf) then
+        return
+    end
+    local ok, project = pcall(vim.api.nvim_buf_get_var, buf, "filemarks_project")
+    if not ok or not project then
+        return
+    end
+    vim.api.nvim_set_option_value("commentstring", "# %s", { buf = buf })
+    local has_header = #vim.api.nvim_buf_get_extmarks(buf, header_ns, 0, -1, { limit = 1 }) > 0
+    if not has_header then
+        apply_header_virtual_text(buf, project)
+    end
+    if win and vim.api.nvim_win_is_valid(win) and not comment_matches[win] then
+        apply_comment_match(win)
+    end
+end
+
 local function editor_has_unsaved_changes(buf)
     if not buf or not vim.api.nvim_buf_is_valid(buf) then
         return false
@@ -415,8 +433,14 @@ local function install_filetype_support()
         group = group,
         pattern = "filemarks",
         callback = function(ev)
-            vim.api.nvim_set_option_value("commentstring", "# %s", { buf = ev.buf })
-            apply_comment_match(vim.api.nvim_get_current_win())
+            refresh_filemarks_view(vim.api.nvim_get_current_win(), ev.buf)
+        end,
+    })
+    vim.api.nvim_create_autocmd("BufWinEnter", {
+        group = group,
+        pattern = "Filemarks://*",
+        callback = function(ev)
+            refresh_filemarks_view(ev.win, ev.buf)
         end,
     })
 end
@@ -524,17 +548,16 @@ local function open_marks_editor(project, marks)
         if ok and stored_project then
             project_for_header = stored_project
         end
-        vim.api.nvim_set_option_value("commentstring", "# %s", { buf = existing })
-        apply_header_virtual_text(existing, project_for_header)
+        refresh_filemarks_view(vim.api.nvim_get_current_win(), existing)
         for _, win in ipairs(vim.api.nvim_list_wins()) do
             if vim.api.nvim_win_get_buf(win) == existing then
                 vim.api.nvim_set_current_win(win)
-                apply_comment_match(win)
+                refresh_filemarks_view(win, existing)
                 return
             end
         end
         vim.api.nvim_win_set_buf(0, existing)
-        apply_comment_match(vim.api.nvim_get_current_win())
+        refresh_filemarks_view(vim.api.nvim_get_current_win(), existing)
         return
     end
 
@@ -553,8 +576,8 @@ local function open_marks_editor(project, marks)
     end
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
     apply_header_virtual_text(buf, project)
-    vim.api.nvim_set_option_value("modified", false, { buf = buf })
     apply_comment_match(vim.api.nvim_get_current_win())
+    vim.api.nvim_set_option_value("modified", false, { buf = buf })
 
     -- Position cursor on first mark line (first non-comment, non-empty line)
     if marks and not vim.tbl_isempty(marks) then
