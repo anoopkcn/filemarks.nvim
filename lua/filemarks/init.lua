@@ -398,8 +398,8 @@ local function install_filetype_support()
     vim.api.nvim_create_autocmd("BufWinEnter", {
         group = group,
         pattern = "Filemarks://*",
-        callback = function(ev)
-            apply_comment_match(ev.win)
+        callback = function()
+            apply_comment_match(vim.api.nvim_get_current_win())
         end,
     })
 end
