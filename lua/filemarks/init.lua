@@ -178,18 +178,6 @@ local function canonicalize_project_marks(project, marks)
     return updated
 end
 
-local function has_command_modifiers(smods)
-    if not smods then
-        return false
-    end
-    return smods.tab
-        or smods.vertical
-        or smods.horizontal
-        or smods.split
-        or smods.leftabove
-        or smods.rightbelow
-end
-
 local function get_marks(path_hint)
     local project = detect_project(path_hint)
     if not project then
@@ -374,7 +362,9 @@ local function install_commands()
         nargs = "?",
     })
 
-    vim.api.nvim_create_user_command("FilemarksList", M.list, {
+    vim.api.nvim_create_user_command("FilemarksList", function(opts)
+        M.list(opts)
+    end, {
         desc = "Edit filemarks for the current project",
     })
 
@@ -533,8 +523,8 @@ end
 local function open_marks_editor(project, marks, cmd_opts)
     local target_name = string.format("Filemarks://%s", project)
     local existing, existing_win = find_marks_buffer(project)
-    local smods = cmd_opts and cmd_opts.smods or nil
-    local use_mods = has_command_modifiers(smods)
+    local mods = cmd_opts and cmd_opts.mods or ""
+    local use_mods = type(mods) == "string" and mods ~= ""
 
     if existing_win and not use_mods then
         vim.api.nvim_set_current_win(existing_win)
@@ -545,7 +535,7 @@ local function open_marks_editor(project, marks, cmd_opts)
     -- Respect user command modifiers first (e.g. :rightbelow vertical FilemarksList)
     local target_win = nil
     if use_mods then
-        local ok = pcall(vim.api.nvim_cmd, { cmd = "split" }, { smods = smods })
+        local ok = pcall(vim.cmd, mods .. " new")
         if ok and vim.api.nvim_win_is_valid(0) then
             target_win = vim.api.nvim_get_current_win()
         end
