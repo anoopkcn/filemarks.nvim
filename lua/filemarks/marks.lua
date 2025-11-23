@@ -11,6 +11,18 @@ local function prompt_key(prompt)
     return key ~= "" and key or nil
 end
 
+local function resolve_mark_paths(path, project)
+    local resolved, stored, display = paths.resolve_mark_paths(path, project)
+    if not resolved then
+        return nil
+    end
+    return {
+        resolved = resolved,
+        stored = stored,
+        display = display,
+    }
+end
+
 local function get_marks(path_hint)
     local project = paths.detect_project(path_hint)
     if not project then
@@ -52,12 +64,17 @@ function M.add(key, file_path)
         return
     end
     local project = project_or_err
-    local display_path = paths.relativize_path(resolved_file, project)
+    local resolved_paths = resolve_mark_paths(resolved_file, project)
+    if not resolved_paths then
+        vim.notify("Filemarks: unable to resolve file path", vim.log.levels.ERROR)
+        return
+    end
+    local display_path = resolved_paths.display
     local existing_value = marks[key]
 
     if existing_value and type(existing_value) == "string" and existing_value ~= "" then
         local resolved_existing = paths.resolve_project_path(existing_value, project)
-        if resolved_existing == resolved_file then
+        if resolved_existing == resolved_paths.resolved then
             vim.notify(string.format("Filemarks: %s already points to %s", key, display_path), vim.log.levels.INFO)
             return
         end
@@ -65,7 +82,7 @@ function M.add(key, file_path)
 
     if existing_value then
         local current_display = paths.relativize_path(existing_value, project)
-        local new_display = paths.relativize_path(resolved_file, project)
+        local new_display = resolved_paths.display
         local choice = vim.fn.confirm(
             string.format(
                 "Filemarks: %s already points to '%s' replace with '%s'?",
@@ -80,8 +97,8 @@ function M.add(key, file_path)
             return
         end
     end
-    local stored_path = paths.relativize_path(resolved_file, project)
-    marks[key] = stored_path
+
+    marks[key] = resolved_paths.stored
     storage.save()
     keymaps.ensure_jump_keymap(key)
     vim.notify(string.format("Filemarks: added %s -> %s", key, display_path), vim.log.levels.INFO)
@@ -93,33 +110,14 @@ function M.add_dir(key, dir_path)
     if not key then
         return
     end
-    local target_dir = dir_path
-    if not target_dir or target_dir == "" then
-        local ok, netrw_dir = pcall(vim.api.nvim_buf_get_var, 0, "netrw_curdir")
-        if ok and netrw_dir and netrw_dir ~= "" then
-            target_dir = netrw_dir
-        else
-            local current_file = vim.api.nvim_buf_get_name(0)
-            if current_file and current_file ~= "" then
-                if paths.is_directory(current_file) then
-                    target_dir = current_file
-                else
-                    target_dir = vim.fn.fnamemodify(current_file, ":p:h")
-                end
-            else
-                target_dir = vim.fn.getcwd()
-            end
-        end
-    end
-
-    local resolved_dir = paths.normalize_path(target_dir)
+    local resolved_dir = dir_path and paths.normalize_path(dir_path) or paths.current_dir_context()
     if not resolved_dir or resolved_dir == "" then
         vim.notify("Filemarks: unable to determine directory path", vim.log.levels.WARN)
         return
     end
 
     if not paths.is_directory(resolved_dir) then
-        vim.notify(string.format("Filemarks: '%s' is not a directory", target_dir), vim.log.levels.WARN)
+        vim.notify(string.format("Filemarks: '%s' is not a directory", dir_path or resolved_dir), vim.log.levels.WARN)
         return
     end
 
@@ -180,24 +178,24 @@ local function open_mark(key)
         vim.notify(string.format("Filemarks: invalid path for %s", key), vim.log.levels.ERROR)
         return
     end
-    local resolved = paths.resolve_project_path(path, project)
-    if not resolved then
+    local resolved_paths = resolve_mark_paths(path, project)
+    if not resolved_paths then
         vim.notify(string.format("Filemarks: unable to resolve %s for project", key), vim.log.levels.ERROR)
         return
     end
 
-    if paths.is_directory(resolved) then
-        vim.cmd("Explore " .. vim.fn.fnameescape(resolved))
+    if paths.is_directory(resolved_paths.resolved) then
+        vim.cmd("Explore " .. vim.fn.fnameescape(resolved_paths.resolved))
         return
     end
 
-    if paths.focus_buffer_for_path(resolved) then
+    if paths.focus_buffer_for_path(resolved_paths.resolved) then
         return
     end
     local cwd = paths.normalize_path(vim.fn.getcwd())
-    local edit_arg = resolved
+    local edit_arg = resolved_paths.resolved
     if cwd == project and type(path) == "string" and path ~= "" and not paths.is_absolute_path(path) then
-        edit_arg = path
+        edit_arg = resolved_paths.stored or path
     end
     vim.cmd("edit " .. vim.fn.fnameescape(edit_arg))
 end

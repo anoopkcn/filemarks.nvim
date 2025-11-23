@@ -9,7 +9,7 @@ local FILE_READ_MODE = 420 -- octal 0644
 local M = {}
 
 local function ensure_storage_dir()
-    local dir = vim.fn.fnamemodify(state.config.storage_path, ":h")
+    local dir = vim.fs.dirname(state.config.storage_path)
     if dir and dir ~= "" then
         vim.fn.mkdir(dir, "p")
     end

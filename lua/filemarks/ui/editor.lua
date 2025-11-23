@@ -14,14 +14,13 @@ local function ensure_comment_match(win)
     if not buf or not vim.api.nvim_buf_is_valid(buf) then
         return
     end
-    local ok, existing = pcall(vim.api.nvim_win_get_var, target_win, "filemarks_comment_match")
-    if ok and existing then
+    if vim.w[target_win].filemarks_comment_match then
         return
     end
     local id = vim.api.nvim_win_call(target_win, function()
         return vim.fn.matchadd("Comment", "^\\s*#.*")
     end)
-    pcall(vim.api.nvim_win_set_var, target_win, "filemarks_comment_match", id)
+    vim.w[target_win].filemarks_comment_match = id
 end
 
 local function clear_comment_match(win)
@@ -29,10 +28,10 @@ local function clear_comment_match(win)
     if not target_win or not vim.api.nvim_win_is_valid(target_win) then
         return
     end
-    local ok, existing = pcall(vim.api.nvim_win_get_var, target_win, "filemarks_comment_match")
-    if ok and existing then
+    local existing = vim.w[target_win].filemarks_comment_match
+    if existing then
         pcall(vim.fn.matchdelete, existing, target_win)
-        pcall(vim.api.nvim_win_del_var, target_win, "filemarks_comment_match")
+        vim.w[target_win].filemarks_comment_match = nil
     end
 end
 
@@ -60,12 +59,9 @@ local function generate_editor_lines(project, marks)
 
     local mark_lines = vim.tbl_map(function(key)
         local stored_path = marks[key]
-        local display_path = paths.relativize_path(stored_path, project)
-        local resolved = paths.resolve_project_path(stored_path, project)
-        if resolved and paths.is_directory(resolved) and not vim.endswith(display_path, "/") then
-            display_path = display_path .. "/"
-        end
-        return string.format("%s %s", key, display_path)
+        local resolved_paths = paths.resolve_mark_paths(stored_path, project)
+        local display_path = resolved_paths and resolved_paths.display or paths.relativize_path(stored_path, project)
+        return string.format("%s %s", key, display_path or "")
     end, keys)
 
     vim.list_extend(header, mark_lines)
@@ -85,11 +81,11 @@ local function parse_editor_buffer(buf, project)
             if parsed[key] then
                 return nil, string.format("Duplicate key '%s' detected on line %d", key, idx)
             end
-            local resolved = paths.resolve_project_path(path, project)
-            if not resolved then
+            local resolved_paths = paths.resolve_mark_paths(path, project)
+            if not resolved_paths then
                 return nil, string.format("Could not resolve path on line %d", idx)
             end
-            parsed[key] = paths.relativize_path(resolved, project)
+            parsed[key] = resolved_paths.stored
         end
     end
     return parsed
@@ -115,8 +111,8 @@ local function setup_filemarks_buffer_autocmds(buf)
         group = augroup,
         buffer = buf,
         callback = function()
-            local ok, project_var = pcall(vim.api.nvim_buf_get_var, buf, "filemarks_project")
-            if not ok then
+            local project_var = vim.b[buf].filemarks_project
+            if not project_var then
                 vim.notify("Filemarks: unable to determine project for editor buffer", vim.log.levels.ERROR)
                 return
             end
@@ -205,7 +201,7 @@ function M.open_editor(project, marks, cmd_opts)
     vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
     vim.api.nvim_set_option_value("filetype", "filemarks", { buf = buf })
     vim.api.nvim_buf_set_name(buf, target_name)
-    vim.api.nvim_buf_set_var(buf, "filemarks_project", project)
+    vim.b[buf].filemarks_project = project
     local lines = generate_editor_lines(project, marks)
     if vim.tbl_isempty(lines) then
         lines = { "" }
@@ -225,7 +221,7 @@ function M.open_editor(project, marks, cmd_opts)
     end
 
     setup_filemarks_buffer_autocmds(buf)
-    vim.api.nvim_buf_set_var(buf, "filemarks_initialized", true)
+    vim.b[buf].filemarks_initialized = true
 end
 
 function M.install_filetype_support()

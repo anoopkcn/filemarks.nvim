@@ -58,6 +58,31 @@ function M.is_directory(path)
     return stat and stat.type == "directory"
 end
 
+function M.current_dir_context(bufnr)
+    local target_buf = bufnr or 0
+    if target_buf ~= 0 and not vim.api.nvim_buf_is_valid(target_buf) then
+        return nil
+    end
+    local netrw_dir = vim.b[target_buf].netrw_curdir
+    if type(netrw_dir) == "string" and netrw_dir ~= "" then
+        return M.normalize_path(netrw_dir)
+    end
+
+    local current_file = vim.api.nvim_buf_get_name(target_buf)
+    if current_file and current_file ~= "" then
+        local normalized = M.normalize_path(current_file)
+        if normalized and M.is_directory(normalized) then
+            return normalized
+        end
+        local parent = normalized and vim.fs.dirname(normalized) or nil
+        if parent and parent ~= "" then
+            return M.normalize_path(parent)
+        end
+    end
+
+    return M.normalize_path(vim.fn.getcwd())
+end
+
 function M.focus_buffer_for_path(path)
     local target = M.normalize_path(path)
     if not target then
@@ -102,6 +127,19 @@ function M.resolve_project_path(path, project)
         trimmed = vim.fs.joinpath(base, trimmed)
     end
     return M.normalize_path(trimmed)
+end
+
+function M.resolve_mark_paths(path, project)
+    local resolved = M.resolve_project_path(path, project)
+    if not resolved then
+        return nil
+    end
+    local stored = M.relativize_path(resolved, project)
+    local display = stored
+    if M.is_directory(resolved) and not vim.endswith(display, "/") then
+        display = display .. "/"
+    end
+    return resolved, stored, display
 end
 
 return M
