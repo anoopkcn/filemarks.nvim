@@ -19,6 +19,7 @@ local state = {
     data = {},
     keymaps = {},
     action_keymaps = {},
+    goto_prefix_keymap = nil,
     loaded = false,
     commands_installed = false,
     filetype_autocmd = nil,
@@ -306,8 +307,12 @@ local function reset_keymaps()
     for _, lhs in ipairs(state.action_keymaps) do
         pcall(vim.keymap.del, "n", lhs)
     end
+    if state.goto_prefix_keymap then
+        pcall(vim.keymap.del, "n", state.goto_prefix_keymap)
+    end
     state.keymaps = {}
     state.action_keymaps = {}
+    state.goto_prefix_keymap = nil
 end
 
 local ACTION_MAPPINGS = {
@@ -330,6 +335,37 @@ local function install_action_keymaps()
         end, { desc = "Filemarks: " .. desc })
         table.insert(state.action_keymaps, lhs)
     end
+end
+
+local function handle_prefix_jump()
+    load_state()
+    local ok, key = pcall(vim.fn.getcharstr)
+    if not ok or not key or key == "" then
+        return
+    end
+    if key == "\027" or key == "<Esc>" then
+        return
+    end
+    local marks, project_or_err = get_marks()
+    if not marks then
+        vim.notify(string.format("Filemarks: %s", project_or_err or "unknown error"), vim.log.levels.ERROR)
+        return
+    end
+    if not marks[key] then
+        vim.notify(string.format("Filemarks: no file set for mark %s", key), vim.log.levels.INFO)
+        return
+    end
+    M.open(key)
+end
+
+local function install_goto_prefix_fallback()
+    -- Provide a generic prefix mapping so `<prefix><key>` not in state still tries `open`
+    local prefix = state.config.goto_prefix
+    if not prefix or prefix == "" then
+        return
+    end
+    vim.keymap.set("n", prefix, handle_prefix_jump, { desc = "Filemarks: jump to mark" })
+    state.goto_prefix_keymap = prefix
 end
 
 local function install_commands()
@@ -603,6 +639,7 @@ function M.configure(opts)
     state.data = {}
     load_state()
     install_action_keymaps()
+    install_goto_prefix_fallback()
 end
 
 function M.add(key, file_path)
