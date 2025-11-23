@@ -749,7 +749,7 @@ function M.open(key)
     end
     local project = project_or_err
     if not marks[key] then
-        vim.notify(string.format("Filemarks: %s not set for this project", key), vim.log.levels.WARN)
+        vim.notify(string.format("Filemarks: no file set for mark %s", key), vim.log.levels.INFO)
         return
     end
     local path = marks[key]
