@@ -3,7 +3,6 @@ local M = {}
 function M.reset(default_config)
     local commands_installed = M.commands_installed
     local filetype_autocmd = M.filetype_autocmd
-    local comment_matches = M.comment_matches or {}
     M.config = vim.deepcopy(default_config)
     M.data = {}
     M.keymaps = {}
@@ -12,7 +11,6 @@ function M.reset(default_config)
     M.loaded = false
     M.commands_installed = commands_installed
     M.filetype_autocmd = filetype_autocmd
-    M.comment_matches = comment_matches
 end
 
 function M.key_in_use(key)

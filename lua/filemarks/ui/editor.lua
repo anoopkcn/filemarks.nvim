@@ -5,24 +5,40 @@ local keymaps = require("filemarks.keymaps")
 
 local M = {}
 
-local function apply_comment_match(win)
-    if not win or not vim.api.nvim_win_is_valid(win) then
+local function ensure_comment_match(win)
+    local target_win = win or vim.api.nvim_get_current_win()
+    if not target_win or not vim.api.nvim_win_is_valid(target_win) then
         return
     end
-    local buf = vim.api.nvim_win_get_buf(win)
+    local buf = vim.api.nvim_win_get_buf(target_win)
     if not buf or not vim.api.nvim_buf_is_valid(buf) then
         return
     end
-
-    local existing = state.comment_matches[win]
-    if existing then
-        pcall(vim.fn.matchdelete, existing, win)
+    local ok, existing = pcall(vim.api.nvim_win_get_var, target_win, "filemarks_comment_match")
+    if ok and existing then
+        return
     end
-
-    local id = vim.api.nvim_win_call(win, function()
+    local id = vim.api.nvim_win_call(target_win, function()
         return vim.fn.matchadd("Comment", "^\\s*#.*")
     end)
-    state.comment_matches[win] = id
+    pcall(vim.api.nvim_win_set_var, target_win, "filemarks_comment_match", id)
+end
+
+local function clear_comment_match(win)
+    local target_win = win or vim.api.nvim_get_current_win()
+    if not target_win or not vim.api.nvim_win_is_valid(target_win) then
+        return
+    end
+    local ok, existing = pcall(vim.api.nvim_win_get_var, target_win, "filemarks_comment_match")
+    if ok and existing then
+        pcall(vim.fn.matchdelete, existing, target_win)
+        pcall(vim.api.nvim_win_del_var, target_win, "filemarks_comment_match")
+    end
+end
+
+local function configure_comment(buf, win)
+    vim.api.nvim_set_option_value("commentstring", "# %s", { buf = buf })
+    ensure_comment_match(win)
 end
 
 local function editor_has_unsaved_changes(buf)
@@ -122,7 +138,7 @@ local function setup_filemarks_buffer_autocmds(buf)
     })
 end
 
-local function find_marks_buffer(project)
+function M.open_editor(project, marks, cmd_opts)
     local target_name = string.format("Filemarks://%s", project)
     local existing, existing_win = nil, nil
     for _, win in ipairs(vim.api.nvim_list_wins()) do
@@ -132,27 +148,20 @@ local function find_marks_buffer(project)
             break
         end
     end
-    if existing then
-        return existing, existing_win
-    end
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) == target_name then
-            existing = buf
-            break
+    if not existing then
+        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) == target_name then
+                existing = buf
+                break
+            end
         end
     end
-    return existing, existing_win
-end
-
-function M.open_editor(project, marks, cmd_opts)
-    local target_name = string.format("Filemarks://%s", project)
-    local existing, existing_win = find_marks_buffer(project)
     local mods = cmd_opts and cmd_opts.mods or ""
     local use_mods = type(mods) == "string" and mods ~= ""
 
     if existing_win and not use_mods then
         vim.api.nvim_set_current_win(existing_win)
-        apply_comment_match(existing_win)
+        ensure_comment_match(existing_win)
         return
     end
 
@@ -185,7 +194,7 @@ function M.open_editor(project, marks, cmd_opts)
 
     if existing then
         vim.api.nvim_win_set_buf(target_win, existing)
-        apply_comment_match(target_win)
+        configure_comment(existing, target_win)
         return
     end
 
@@ -195,7 +204,6 @@ function M.open_editor(project, marks, cmd_opts)
     vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
     vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
     vim.api.nvim_set_option_value("filetype", "filemarks", { buf = buf })
-    vim.api.nvim_set_option_value("commentstring", "# %s", { buf = buf })
     vim.api.nvim_buf_set_name(buf, target_name)
     vim.api.nvim_buf_set_var(buf, "filemarks_project", project)
     local lines = generate_editor_lines(project, marks)
@@ -204,7 +212,7 @@ function M.open_editor(project, marks, cmd_opts)
     end
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
     vim.api.nvim_set_option_value("modified", false, { buf = buf })
-    apply_comment_match(target_win)
+    configure_comment(buf, target_win)
 
     if marks and not vim.tbl_isempty(marks) then
         for i, line in ipairs(lines) do
@@ -226,19 +234,18 @@ function M.install_filetype_support()
     end
     local group = vim.api.nvim_create_augroup("FilemarksFiletype", { clear = true })
     state.filetype_autocmd = group
-    vim.api.nvim_create_autocmd("FileType", {
+    vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
         group = group,
-        pattern = "filemarks",
+        pattern = { "filemarks", "Filemarks://*" },
         callback = function(ev)
-            vim.api.nvim_set_option_value("commentstring", "# %s", { buf = ev.buf })
-            apply_comment_match(vim.api.nvim_get_current_win())
+            configure_comment(ev.buf, ev.win)
         end,
     })
-    vim.api.nvim_create_autocmd("BufWinEnter", {
+    vim.api.nvim_create_autocmd("BufWinLeave", {
         group = group,
         pattern = "Filemarks://*",
-        callback = function()
-            apply_comment_match(vim.api.nvim_get_current_win())
+        callback = function(ev)
+            clear_comment_match(ev.win)
         end,
     })
 end
