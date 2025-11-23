@@ -59,8 +59,8 @@ local function generate_editor_lines(project, marks)
 
     local mark_lines = vim.tbl_map(function(key)
         local stored_path = marks[key]
-        local resolved_paths = paths.resolve_mark_paths(stored_path, project)
-        local display_path = resolved_paths and resolved_paths.display or paths.relativize_path(stored_path, project)
+        local _, _, display = paths.resolve_mark_paths(stored_path, project)
+        local display_path = display or paths.relativize_path(stored_path, project)
         return string.format("%s %s", key, display_path or "")
     end, keys)
 
@@ -81,11 +81,11 @@ local function parse_editor_buffer(buf, project)
             if parsed[key] then
                 return nil, string.format("Duplicate key '%s' detected on line %d", key, idx)
             end
-            local resolved_paths = paths.resolve_mark_paths(path, project)
-            if not resolved_paths then
+            local resolved, stored = paths.resolve_mark_paths(path, project)
+            if not resolved then
                 return nil, string.format("Could not resolve path on line %d", idx)
             end
-            parsed[key] = resolved_paths.stored
+            parsed[key] = stored
         end
     end
     return parsed
