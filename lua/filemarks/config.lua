@@ -6,6 +6,7 @@ local default_config = {
     action_prefix = "<leader>M",
     storage_path = vim.fn.stdpath("state") .. "/filemarks.json",
     project_markers = { ".git", ".hg", ".svn" },
+    dir_open_cmd = nil,
     list_open_cmd = nil,
 }
 

@@ -23,6 +23,47 @@ local function resolve_mark_paths(path, project)
     }
 end
 
+local function open_directory(dir_path)
+    local dir_open_cmd = state.config.dir_open_cmd
+    if dir_open_cmd == nil or dir_open_cmd == "" then
+        vim.notify("Filemarks: file explorer not set", vim.log.levels.INFO)
+        return
+    end
+
+    if type(dir_open_cmd) == "function" then
+        local ok, result = pcall(dir_open_cmd, dir_path)
+        if not ok then
+            vim.notify(string.format("Filemarks: directory handler error: %s", result), vim.log.levels.ERROR)
+            return
+        end
+        if type(result) == "number" and vim.api.nvim_win_is_valid(result) then
+            vim.api.nvim_set_current_win(result)
+        end
+        return
+    end
+
+    if type(dir_open_cmd) == "string" then
+        local cmd = dir_open_cmd
+        if cmd:find("%%s") then
+            local ok, formatted = pcall(string.format, cmd, vim.fn.fnameescape(dir_path))
+            if not ok then
+                vim.notify(string.format("Filemarks: invalid dir_open_cmd: %s", formatted), vim.log.levels.ERROR)
+                return
+            end
+            cmd = formatted
+        else
+            cmd = cmd .. " " .. vim.fn.fnameescape(dir_path)
+        end
+        local ok, err = pcall(vim.cmd, cmd)
+        if not ok then
+            vim.notify(string.format("Filemarks: unable to open directory: %s", err), vim.log.levels.ERROR)
+        end
+        return
+    end
+
+    vim.notify("Filemarks: dir_open_cmd must be a string or function", vim.log.levels.ERROR)
+end
+
 local function get_marks(path_hint)
     local project = paths.detect_project(path_hint)
     if not project then
@@ -185,7 +226,7 @@ local function open_mark(key)
     end
 
     if paths.is_directory(resolved_paths.resolved) then
-        vim.cmd("Explore " .. vim.fn.fnameescape(resolved_paths.resolved))
+        open_directory(resolved_paths.resolved)
         return
     end
 

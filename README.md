@@ -101,6 +101,12 @@ require('filemarks').setup({
   action_prefix = "<leader>M",    -- Prefix for action keybindings
   storage_path = vim.fn.stdpath("state") .. "/filemarks.json",
   project_markers = { ".git", ".hg", ".svn" },  -- Files/dirs that mark project root
+  -- Command (string) or function used to open directory marks.
+  -- Examples:
+  --   "Explore"       -- netrw
+  --   "Oil %s"        -- stevearc/oil.nvim
+  --   function(path) vim.cmd("Neotree " .. vim.fn.fnameescape(path)) end
+  dir_open_cmd = nil,             -- If nil, shows "file explorer not set" for directory marks
   -- Command (string) or function used to open the list buffer in a window.
   -- Examples:
   --   "rightbelow vsplit"
@@ -172,6 +178,10 @@ When called without a directory path:
 1. Uses netrw directory if in a netrw buffer
 2. Falls back to current file's directory
 3. Falls back to current working directory
+
+Opening a directory mark uses `dir_open_cmd`. If it is `nil`, you'll see
+"Filemarks: file explorer not set". Set it to `"Explore"`, `"Oil %s"`, or a
+custom function to choose your file viewer.
 
 ### `:FilemarksRemove [key]`
 
@@ -248,7 +258,7 @@ Project B:
 
 " Jump back anytime
 <leader>md
-" Opens directory in netrw
+" Opens directory with your configured explorer (see dir_open_cmd)
 ```
 
 ## Lua API

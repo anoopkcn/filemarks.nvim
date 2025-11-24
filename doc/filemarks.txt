@@ -62,7 +62,7 @@ Example workflow: >
     5. In a directory you want to mark
     6. Press <leader>Md
     7. Enter "d" as the key
-    8. Now <leader>md opens that directory in netrw
+    8. Now <leader>md opens that directory using your configured explorer
 <
 ==============================================================================
 3. COMMANDS                                              *filemarks-commands*
@@ -112,7 +112,8 @@ Examples: >
 <
 Opening directory marks:
 When you jump to a directory mark with |:FilemarksOpen| or the jump
-keybinding, it opens the directory in netrw (|:Explore|).
+keybinding, |g:filemarks_dir_open_cmd| is used. If it is nil, a notification
+is shown.
 
 ------------------------------------------------------------------------------
 3.3 FilemarksRemove                                      *:FilemarksRemove*
@@ -164,7 +165,7 @@ Examples: >
 <
 Behavior:
   • For files: opens in current window or switches to existing buffer
-  • For directories: opens in netrw
+  • For directories: uses |g:filemarks_dir_open_cmd| (notifies if unset)
   • Uses relative paths when in the same project
   • Validates mark exists before opening
 
@@ -227,6 +228,8 @@ Configure filemarks in your init.lua: >
         action_prefix = "<leader>M",
         storage_path = vim.fn.stdpath("state") .. "/filemarks.json",
         project_markers = { ".git", ".hg", ".svn" },
+        dir_open_cmd = nil,
+        list_open_cmd = nil,
     })
 <
 ------------------------------------------------------------------------------
@@ -284,6 +287,42 @@ Add custom markers for your workflow: >
     project_markers = { ".git", "pyproject.toml", "package.json" }
 <
 If no marker is found, falls back to current working directory.
+
+------------------------------------------------------------------------------
+                                              *g:filemarks_dir_open_cmd*
+dir_open_cmd~
+    Type: string or function
+    Default: nil
+
+Command used when opening directory marks. When nil, opening a directory mark
+shows "Filemarks: file explorer not set".
+
+String values run as Ex commands. If the string contains '%s', the escaped
+path is formatted into the command (e.g. "Oil %s"). Otherwise the escaped path
+is appended: {cmd} {path}.
+
+Function values are called with the resolved directory path. They may return a
+window id to focus after opening.
+
+Examples: >
+    dir_open_cmd = "Explore"           -- netrw
+    dir_open_cmd = "Oil %s"            -- stevearc/oil.nvim
+    dir_open_cmd = function(path) vim.cmd("Neotree " .. vim.fn.fnameescape(path)) end
+<
+
+------------------------------------------------------------------------------
+                                              *g:filemarks_list_open_cmd*
+list_open_cmd~
+    Type: string or function
+    Default: nil
+
+Command used to open the filemarks list buffer. Strings run as Ex commands;
+functions can return a window id.
+
+Examples: >
+    list_open_cmd = "rightbelow vsplit"
+    list_open_cmd = function() vim.cmd("topleft split") end
+<
 
 ==============================================================================
 6. EDITOR INTERFACE                                      *filemarks-editor*
@@ -557,8 +596,8 @@ Basic usage~
 <
 Directory marks~
 >
-    " 1. Open netrw in a directory
-    :Explore tests/
+    " 1. Choose an explorer for directory marks (optional)
+    lua require('filemarks').configure({ dir_open_cmd = "Explore" })
 
     " 2. Mark this directory
     :FilemarksAddDir t
