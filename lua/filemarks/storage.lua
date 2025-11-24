@@ -4,6 +4,9 @@ local keymaps = require("filemarks.keymaps")
 
 local uv = vim.uv or vim.loop
 
+local notify = vim.notify
+local log = vim.log.levels
+
 local FILE_READ_MODE = 420 -- octal 0644
 
 local M = {}
@@ -35,21 +38,40 @@ local function canonicalize_project_marks(project, marks)
     return updated
 end
 
-function M.save()
-    ensure_storage_dir()
-    local encoded = vim.json.encode(state.data)
+function M.mark_dirty()
+    state.dirty = true
+end
+
+local function write_json(encoded)
     local ok, err = pcall(vim.fn.writefile, { encoded }, state.config.storage_path)
     if not ok then
-        vim.notify(string.format("Filemarks: failed to save - %s", err), vim.log.levels.ERROR)
+        notify(string.format("Filemarks: failed to save - %s", err), log.ERROR)
+        state.dirty = true
     end
 end
 
+function M.save()
+    if not state.dirty then
+        return
+    end
+    ensure_storage_dir()
+    local ok, encoded = pcall(vim.json.encode, state.data)
+    if not ok then
+        notify(string.format("Filemarks: failed to encode filemarks - %s", encoded), log.ERROR)
+        state.dirty = true
+        return
+    end
+    state.dirty = false
+    write_json(encoded)
+end
+
 function M.load()
-    if state.loaded then
+    local path = state.config.storage_path
+    if state.loaded and state.loaded_path == path then
         return
     end
     state.loaded = true
-    local path = state.config.storage_path
+    state.loaded_path = path
     local fd = uv.fs_open(path, "r", FILE_READ_MODE)
     if fd then
         local stat = uv.fs_fstat(fd)
@@ -76,6 +98,7 @@ function M.load()
         end
     end
     if needs_save then
+        M.mark_dirty()
         M.save()
     end
 end

@@ -3,6 +3,9 @@ local paths = require("filemarks.paths")
 local storage = require("filemarks.storage")
 local keymaps = require("filemarks.keymaps")
 
+local notify = vim.notify
+local log = vim.log.levels
+
 local M = {}
 
 local function ensure_comment_match(win)
@@ -113,12 +116,12 @@ local function setup_filemarks_buffer_autocmds(buf)
         callback = function()
             local project_var = vim.b[buf].filemarks_project
             if not project_var then
-                vim.notify("Filemarks: unable to determine project for editor buffer", vim.log.levels.ERROR)
+                notify("Filemarks: unable to determine project for editor buffer", log.ERROR)
                 return
             end
             local parsed, parse_err = parse_editor_buffer(buf, project_var)
             if not parsed then
-                vim.notify(string.format("Filemarks: %s", parse_err), vim.log.levels.ERROR)
+                notify(string.format("Filemarks: %s", parse_err), log.ERROR)
                 return
             end
             if next(parsed) then
@@ -126,10 +129,11 @@ local function setup_filemarks_buffer_autocmds(buf)
             else
                 state.data[project_var] = nil
             end
+            storage.mark_dirty()
             storage.save()
             keymaps.rebuild_jump_keymaps()
             vim.api.nvim_set_option_value("modified", false, { buf = buf })
-            vim.notify("Filemarks: saved changes", vim.log.levels.INFO)
+            notify("Filemarks: saved changes", log.INFO)
         end,
     })
 end

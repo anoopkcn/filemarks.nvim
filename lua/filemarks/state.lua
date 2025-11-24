@@ -5,10 +5,12 @@ function M.reset(default_config)
     local filetype_autocmd = M.filetype_autocmd
     M.config = vim.deepcopy(default_config)
     M.data = {}
+    M.dirty = false
     M.keymaps = {}
     M.action_keymaps = {}
     M.goto_prefix_keymap = nil
     M.loaded = false
+    M.loaded_path = nil
     M.commands_installed = commands_installed
     M.filetype_autocmd = filetype_autocmd
 end

@@ -4,6 +4,9 @@ local storage = require("filemarks.storage")
 local keymaps = require("filemarks.keymaps")
 local editor = require("filemarks.ui.editor")
 
+local notify = vim.notify
+local log = vim.log.levels
+
 local M = {}
 
 local function prompt_key(prompt)
@@ -96,18 +99,18 @@ function M.add(key, file_path)
     end
     local resolved_file = paths.normalize_path(file_path or vim.api.nvim_buf_get_name(0))
     if not resolved_file or resolved_file == "" then
-        vim.notify("Filemarks: unable to determine file path", vim.log.levels.WARN)
+        notify("Filemarks: unable to determine file path", log.WARN)
         return
     end
     local marks, project_or_err = get_marks(resolved_file)
     if not marks then
-        vim.notify(string.format("Filemarks: %s", project_or_err or "unknown error"), vim.log.levels.ERROR)
+        notify(string.format("Filemarks: %s", project_or_err or "unknown error"), log.ERROR)
         return
     end
     local project = project_or_err
     local resolved_paths = resolve_mark_paths(resolved_file, project)
     if not resolved_paths then
-        vim.notify("Filemarks: unable to resolve file path", vim.log.levels.ERROR)
+        notify("Filemarks: unable to resolve file path", log.ERROR)
         return
     end
     local display_path = resolved_paths.display
@@ -116,7 +119,7 @@ function M.add(key, file_path)
     if existing_value and type(existing_value) == "string" and existing_value ~= "" then
         local resolved_existing = paths.resolve_project_path(existing_value, project)
         if resolved_existing == resolved_paths.resolved then
-            vim.notify(string.format("Filemarks: %s already points to %s", key, display_path), vim.log.levels.INFO)
+            notify(string.format("Filemarks: %s already points to %s", key, display_path), log.INFO)
             return
         end
     end
@@ -134,15 +137,16 @@ function M.add(key, file_path)
             1
         )
         if choice ~= 1 then
-            vim.notify("Filemarks: keeping existing mark", vim.log.levels.INFO)
+            notify("Filemarks: keeping existing mark", log.INFO)
             return
         end
     end
 
     marks[key] = resolved_paths.stored
+    storage.mark_dirty()
     storage.save()
     keymaps.ensure_jump_keymap(key)
-    vim.notify(string.format("Filemarks: added %s -> %s", key, display_path), vim.log.levels.INFO)
+    notify(string.format("Filemarks: added %s -> %s", key, display_path), log.INFO)
 end
 
 function M.add_dir(key, dir_path)
@@ -153,12 +157,12 @@ function M.add_dir(key, dir_path)
     end
     local resolved_dir = dir_path and paths.normalize_path(dir_path) or paths.current_dir_context()
     if not resolved_dir or resolved_dir == "" then
-        vim.notify("Filemarks: unable to determine directory path", vim.log.levels.WARN)
+        notify("Filemarks: unable to determine directory path", log.WARN)
         return
     end
 
     if not paths.is_directory(resolved_dir) then
-        vim.notify(string.format("Filemarks: '%s' is not a directory", dir_path or resolved_dir), vim.log.levels.WARN)
+        notify(string.format("Filemarks: '%s' is not a directory", dir_path or resolved_dir), log.WARN)
         return
     end
 
@@ -173,27 +177,28 @@ function M.remove(key)
     end
     local marks, project_or_err = get_marks()
     if not marks then
-        vim.notify(string.format("Filemarks: %s", project_or_err or "unknown error"), vim.log.levels.ERROR)
+        notify(string.format("Filemarks: %s", project_or_err or "unknown error"), log.ERROR)
         return
     end
     if not marks[key] then
-        vim.notify(string.format("Filemarks: %s not defined for this project", key), vim.log.levels.WARN)
+        notify(string.format("Filemarks: %s not defined for this project", key), log.WARN)
         return
     end
     marks[key] = nil
     if vim.tbl_isempty(marks) then
         state.data[project_or_err] = nil
     end
+    storage.mark_dirty()
     storage.save()
     keymaps.rebuild_jump_keymaps()
-    vim.notify(string.format("Filemarks: removed %s", key), vim.log.levels.INFO)
+    notify(string.format("Filemarks: removed %s", key), log.INFO)
 end
 
 function M.list(opts)
     storage.load()
     local marks, project_or_err = get_marks()
     if not marks then
-        vim.notify(string.format("Filemarks: %s", project_or_err or "unknown error"), vim.log.levels.ERROR)
+        notify(string.format("Filemarks: %s", project_or_err or "unknown error"), log.ERROR)
         return
     end
     editor.open_editor(project_or_err, marks, opts)
@@ -206,22 +211,22 @@ local function open_mark(key)
     end
     local marks, project_or_err = get_marks()
     if not marks then
-        vim.notify(string.format("Filemarks: %s", project_or_err or "unknown error"), vim.log.levels.ERROR)
+        notify(string.format("Filemarks: %s", project_or_err or "unknown error"), log.ERROR)
         return
     end
     local project = project_or_err
     if not marks[key] then
-        vim.notify(string.format("Filemarks: no file set for mark %s", key), vim.log.levels.INFO)
+        notify(string.format("Filemarks: no file set for mark %s", key), log.INFO)
         return
     end
     local path = marks[key]
     if not path or path == "" then
-        vim.notify(string.format("Filemarks: invalid path for %s", key), vim.log.levels.ERROR)
+        notify(string.format("Filemarks: invalid path for %s", key), log.ERROR)
         return
     end
     local resolved_paths = resolve_mark_paths(path, project)
     if not resolved_paths then
-        vim.notify(string.format("Filemarks: unable to resolve %s for project", key), vim.log.levels.ERROR)
+        notify(string.format("Filemarks: unable to resolve %s for project", key), log.ERROR)
         return
     end
 
