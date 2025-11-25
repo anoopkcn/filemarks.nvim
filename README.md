@@ -151,7 +151,6 @@ require('filemarks').setup({
   list_open_cmd = "rightbelow vsplit",
 })
 ```
-```
 
 ## Commands
 
