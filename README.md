@@ -141,6 +141,7 @@ require('filemarks').setup({
 require('filemarks').setup({
   project_markers = { ".git", "package.json", "Cargo.toml", "pyproject.toml" },
 })
+```
 
 ### Choose where the list opens
 
