@@ -65,7 +65,9 @@ EOF
 
 ## Quick Start
 
-After installation, the plugin provides default keybindings (assuming `<leader>` is space):
+After installation, the plugin provides default keybindings (using `<leader>`):
+
+In the examples the `{key}` can be any single character (a-z, 0-9, punctuation).
 
 **Action keybindings:**
 - `<leader>Ma` - Add filemark for current file
