@@ -356,6 +356,5 @@ require('filemarks').setup({
 
 MIT
 
-## Author
-
-[@anoopkcn](https://github.com/anoopkcn)
+## Related Projects
+[harpoon](https://github.com/ThePrimeagen/harpoon/tree/harpoon2) - Getting you where you want with the fewest keystrokes.
