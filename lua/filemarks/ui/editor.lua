@@ -51,11 +51,15 @@ local function editor_has_unsaved_changes(buf)
 end
 
 local function generate_editor_lines(project, marks)
-    local header = {
-        string.format("# Filemarks for %s", project),
-        "# Format: <key><space><path>. Directories should have a trailing '/'",
-        "",
-    }
+    local lines = {}
+
+    if state.config.show_help then
+        vim.list_extend(lines, {
+            string.format("# Filemarks for %s", project),
+            "# Format: <key><space><path>. Directories should have a trailing '/'",
+            "",
+        })
+    end
 
     local keys = vim.tbl_keys(marks or {})
     table.sort(keys)
@@ -67,8 +71,8 @@ local function generate_editor_lines(project, marks)
         return string.format("%s %s", key, display_path or "")
     end, keys)
 
-    vim.list_extend(header, mark_lines)
-    return header
+    vim.list_extend(lines, mark_lines)
+    return lines
 end
 
 local function parse_editor_buffer(buf, project)

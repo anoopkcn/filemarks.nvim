@@ -8,6 +8,7 @@ local default_config = {
     project_markers = { ".git", ".hg", ".svn" },
     dir_open_cmd = nil,
     list_open_cmd = nil,
+    show_help = true,
 }
 
 local M = {}
