@@ -163,7 +163,7 @@ function M.open_editor(project, marks, cmd_opts)
     local mods = cmd_opts and cmd_opts.mods or ""
     local use_mods = type(mods) == "string" and mods ~= ""
 
-    if existing_win and not use_mods then
+    if existing_win then
         vim.api.nvim_set_current_win(existing_win)
         ensure_comment_match(existing_win)
         return
