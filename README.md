@@ -207,13 +207,15 @@ The editor buffer format:
 
 ```
 # Filemarks for /path/to/project
-# Format: <key><space><path>. Lines starting with # are comments.
+# Format: <key> -> <path>. Lines starting with # are comments.
 # Directories are shown with a trailing /
 # Delete/Comment a line to remove it. Save to persist changes.
 
-c src/config.lua
-d tests/
-m main.go
+c -> src/config.lua
+d -> tests/
+m -> main.go
+1 -> README.md
+2 -> docs/architecture.md
 ```
 
 Edit the buffer and save (`:w`) to persist changes. Keybindings are automatically updated.
@@ -236,6 +238,8 @@ m -> src/main.rs           (main entry point)
 c -> config/settings.toml  (configuration)
 r -> src/routes.rs         (routing)
 t -> tests/                (test directory)
+1 -> README.md             (any key works: letters or digits)
+2 -> CHANGELOG.md
 ```
 
 ### Per-project shortcuts
@@ -246,10 +250,12 @@ Marks are project-specific, so you can use the same keys across different projec
 Project A:
   m -> app/main.js
   c -> config/app.json
+  1 -> README.md
 
 Project B:
   m -> cmd/main.go
   c -> config.yaml
+  1 -> README.md
 ```
 
 ### Directory bookmarks

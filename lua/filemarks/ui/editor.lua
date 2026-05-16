@@ -56,7 +56,7 @@ local function generate_editor_lines(project, marks)
     if state.config.show_help then
         vim.list_extend(lines, {
             string.format("# Filemarks for %s", project),
-            "# Format: <key><space><path>. Directories should have a trailing '/'",
+            "# Format: <key> -> <path>. Directories should have a trailing '/'",
             "",
         })
     end
@@ -68,7 +68,7 @@ local function generate_editor_lines(project, marks)
         local stored_path = marks[key]
         local _, _, display = paths.resolve_mark_paths(stored_path, project)
         local display_path = display or paths.relativize_path(stored_path, project)
-        return string.format("%s %s", key, display_path or "")
+        return string.format("%s -> %s", key, display_path or "")
     end, keys)
 
     vim.list_extend(lines, mark_lines)
@@ -81,9 +81,9 @@ local function parse_editor_buffer(buf, project)
     for idx, line in ipairs(lines) do
         local trimmed = vim.trim(line)
         if trimmed ~= "" and not vim.startswith(trimmed, "#") then
-            local key, path = trimmed:match("^(%S+)%s+(.+)$")
+            local key, path = trimmed:match("^(%S+)%s*%->%s*(.+)$")
             if not key or not path then
-                return nil, string.format("Line %d is invalid. Expected '<key> <path>'", idx)
+                return nil, string.format("Line %d is invalid. Expected '<key> -> <path>'", idx)
             end
             if parsed[key] then
                 return nil, string.format("Duplicate key '%s' detected on line %d", key, idx)

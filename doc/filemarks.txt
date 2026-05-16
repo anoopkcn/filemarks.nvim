@@ -339,19 +339,21 @@ Editor format:~
 
 The editor buffer shows marks in this format: >
     # Filemarks for /path/to/project
-    # Format: <key><space><path>. Lines starting with # are comments.
+    # Format: <key> -> <path>. Lines starting with # are comments.
     # Directories are shown with a trailing /
     Delete/Comment a line to remove it. Save to persist changes.
 
-    c src/config.lua
-    d tests/
-    m main.go
-    t ../tools/
+    c -> src/config.lua
+    d -> tests/
+    m -> main.go
+    t -> ../tools/
+    1 -> README.md
+    2 -> docs/architecture.md
 <
 Editor operations:~
 
 Add a mark:~
-    1. Add a new line: {key} {path}
+    1. Add a new line: {key} -> {path}
     2. Save the buffer (:w)
 
 Remove a mark:~
@@ -371,19 +373,23 @@ File paths:~
 Comments:~
 Lines starting with # are ignored. Use for organization: >
     # Configuration files
-    c config.lua
-    e .env
+    c -> config.lua
+    e -> .env
 
     # Entry points
-    m main.go
-    t main_test.go
+    m -> main.go
+    t -> main_test.go
 
     # Directories
-    d tests/
+    d -> tests/
+
+    # Numeric keys work too
+    1 -> README.md
+    2 -> CHANGELOG.md
 <
 Validation:~
 When saving, the editor validates:
-  • Format: each line must be "{key} {path}"
+  • Format: each line must be "{key} -> {path}"
   • No duplicate keys
   • Paths must be resolvable
 
