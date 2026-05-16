@@ -32,7 +32,7 @@ function M.relativize_path(path, project)
         end
     end
 
-    local ok, rel = pcall(vim.fs.relpath, path, project)
+    local ok, rel = pcall(vim.fs.relpath, project, path)
     if ok and rel and not vim.startswith(rel, "..") then
         return rel
     end
@@ -89,24 +89,38 @@ function M.focus_buffer_for_path(path)
         return false
     end
 
-    local bufnr = vim.fn.bufnr(target)
-    if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
-        for _, win in ipairs(vim.api.nvim_list_wins()) do
-            if vim.api.nvim_win_get_buf(win) == bufnr then
-                vim.api.nvim_set_current_win(win)
+    for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(bufnr) then
+            local name = vim.api.nvim_buf_get_name(bufnr)
+            if name ~= "" and M.normalize_path(name) == target then
+                for _, win in ipairs(vim.api.nvim_list_wins()) do
+                    if vim.api.nvim_win_get_buf(win) == bufnr then
+                        vim.api.nvim_set_current_win(win)
+                        return true
+                    end
+                end
+                vim.cmd("buffer " .. bufnr)
                 return true
             end
         end
-        vim.cmd("buffer " .. bufnr)
-        return true
     end
     return false
 end
 
 function M.detect_project(path)
     local target = path and vim.fn.fnamemodify(path, ":p:h") or nil
+    if not path then
+        local cached = vim.b.filemarks_project_cached
+        if type(cached) == "string" and cached ~= "" then
+            return cached
+        end
+    end
     local ok, root = pcall(vim.fs.root, target or 0, state.config.project_markers)
-    return ok and root and M.normalize_path(root) or M.normalize_path(vim.fn.getcwd())
+    local resolved = ok and root and M.normalize_path(root) or M.normalize_path(vim.fn.getcwd())
+    if not path and type(resolved) == "string" and resolved ~= "" then
+        vim.b.filemarks_project_cached = resolved
+    end
+    return resolved
 end
 
 function M.resolve_project_path(path, project)
@@ -135,11 +149,12 @@ function M.resolve_mark_paths(path, project)
         return nil
     end
     local stored = M.relativize_path(resolved, project)
+    local is_dir = M.is_directory(resolved)
     local display = stored
-    if M.is_directory(resolved) and not vim.endswith(display, "/") then
+    if is_dir and not vim.endswith(display, "/") then
         display = display .. "/"
     end
-    return resolved, stored, display
+    return resolved, stored, display, is_dir
 end
 
 return M

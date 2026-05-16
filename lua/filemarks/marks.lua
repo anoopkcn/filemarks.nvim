@@ -15,7 +15,7 @@ local function prompt_key(prompt)
 end
 
 local function resolve_mark_paths(path, project)
-    local resolved, stored, display = paths.resolve_mark_paths(path, project)
+    local resolved, stored, display, is_dir = paths.resolve_mark_paths(path, project)
     if not resolved then
         return nil
     end
@@ -23,6 +23,7 @@ local function resolve_mark_paths(path, project)
         resolved = resolved,
         stored = stored,
         display = display,
+        is_dir = is_dir,
     }
 end
 
@@ -67,7 +68,7 @@ local function open_directory(dir_path)
     vim.notify("Filemarks: dir_open_cmd must be a string or function", vim.log.levels.ERROR)
 end
 
-local function get_marks(path_hint)
+local function get_marks(path_hint, create)
     local project = paths.detect_project(path_hint)
     if not project then
         return nil, "Unable to determine project directory"
@@ -75,7 +76,9 @@ local function get_marks(path_hint)
     local marks = state.data[project]
     if type(marks) ~= "table" then
         marks = {}
-        state.data[project] = marks
+        if create then
+            state.data[project] = marks
+        end
     end
     return marks, project
 end
@@ -102,7 +105,7 @@ function M.add(key, file_path)
         notify("Filemarks: unable to determine file path", log.WARN)
         return
     end
-    local marks, project_or_err = get_marks(resolved_file)
+    local marks, project_or_err = get_marks(resolved_file, true)
     if not marks then
         notify(string.format("Filemarks: %s", project_or_err or "unknown error"), log.ERROR)
         return
@@ -230,7 +233,7 @@ local function open_mark(key)
         return
     end
 
-    if paths.is_directory(resolved_paths.resolved) then
+    if resolved_paths.is_dir then
         open_directory(resolved_paths.resolved)
         return
     end
@@ -238,12 +241,7 @@ local function open_mark(key)
     if paths.focus_buffer_for_path(resolved_paths.resolved) then
         return
     end
-    local cwd = paths.normalize_path(vim.fn.getcwd())
-    local edit_arg = resolved_paths.resolved
-    if cwd == project and type(path) == "string" and path ~= "" and not paths.is_absolute_path(path) then
-        edit_arg = resolved_paths.stored or path
-    end
-    vim.cmd("edit " .. vim.fn.fnameescape(edit_arg))
+    vim.cmd("edit " .. vim.fn.fnameescape(resolved_paths.resolved))
 end
 
 M.open = open_mark

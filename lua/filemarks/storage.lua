@@ -43,9 +43,21 @@ function M.mark_dirty()
 end
 
 local function write_json(encoded)
-    local ok, err = pcall(vim.fn.writefile, { encoded }, state.config.storage_path)
-    if not ok then
-        notify(string.format("Filemarks: failed to save - %s", err), log.ERROR)
+    local path = state.config.storage_path
+    local tmp = path .. ".tmp"
+    local ok_write, err_write = pcall(vim.fn.writefile, { encoded }, tmp)
+    if not ok_write then
+        notify(string.format("Filemarks: failed to save (write) - %s", err_write), log.ERROR)
+        state.dirty = true
+        return
+    end
+    local ok_pcall, rc, err_rename = pcall(os.rename, tmp, path)
+    if not ok_pcall or not rc then
+        notify(
+            string.format("Filemarks: failed to save (rename) - %s", err_rename or rc or "unknown"),
+            log.ERROR
+        )
+        pcall(os.remove, tmp)
         state.dirty = true
     end
 end
@@ -81,6 +93,15 @@ function M.load()
                 local ok, decoded = pcall(vim.json.decode, content)
                 if ok and type(decoded) == "table" then
                     state.data = decoded
+                else
+                    notify(
+                        string.format("Filemarks: failed to parse %s - keeping marks unloaded", path),
+                        log.ERROR
+                    )
+                    uv.fs_close(fd)
+                    state.loaded = false
+                    state.loaded_path = nil
+                    return
                 end
             end
         end
@@ -93,7 +114,7 @@ function M.load()
                 needs_save = true
             end
             for key in pairs(marks) do
-                keymaps.ensure_jump_keymap(key)
+                keymaps.ensure_jump_keymap(key, { silent = true })
             end
         end
     end

@@ -15,11 +15,20 @@ local function clear_keymap(key)
     end
 end
 
-function M.ensure_jump_keymap(key)
+function M.ensure_jump_keymap(key, opts)
     if not open_handler or state.keymaps[key] or not state.config.goto_prefix or state.config.goto_prefix == "" then
         return
     end
     local lhs = state.config.goto_prefix .. key
+    if vim.fn.maparg(lhs, "n") ~= "" then
+        if not (opts and opts.silent) then
+            vim.notify(
+                string.format("Filemarks: %s is already mapped - skipping jump keymap for '%s'", lhs, key),
+                vim.log.levels.WARN
+            )
+        end
+        return
+    end
     vim.keymap.set("n", lhs, function()
         open_handler(key)
     end, { desc = string.format("Filemarks: jump to %s", key) })
