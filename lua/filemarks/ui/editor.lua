@@ -232,6 +232,23 @@ function M.open_editor(project, marks, cmd_opts)
     vim.b[buf].filemarks_initialized = true
 end
 
+function M.close_editor()
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.api.nvim_buf_is_loaded(buf) then
+            local name = vim.api.nvim_buf_get_name(buf)
+            if name and name:match("^Filemarks://") then
+                local ok, err = pcall(vim.api.nvim_win_close, win, false)
+                if not ok then
+                    notify(string.format("Filemarks: unable to close window: %s", err), log.WARN)
+                end
+                return true
+            end
+        end
+    end
+    return false
+end
+
 function M.install_filetype_support()
     if state.filetype_autocmd then
         return

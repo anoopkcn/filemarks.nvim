@@ -74,6 +74,7 @@ In the examples the `{key}` can be any single character (a-z, 0-9, punctuation).
 - `<leader>Md` - Add directory mark
 - `<leader>Mr` - Remove filemark
 - `<leader>Ml` - List/edit filemarks for current project
+- `<leader>Mt` - Toggle the filemarks list window
 
 **Jump keybindings** (created automatically):
 - `<leader>m{key}` - Jump to mark `{key}`
@@ -219,6 +220,14 @@ m -> main.go
 ```
 
 Edit the buffer and save (`:w`) to persist changes. Keybindings are automatically updated.
+
+### `:FilemarksToggle`
+
+Toggle the filemarks list window. Closes it if a Filemarks window is visible, otherwise opens the list for the current project (same behavior as `:FilemarksList`).
+
+```vim
+:FilemarksToggle
+```
 
 ### `:FilemarksOpen {key}`
 

@@ -39,6 +39,7 @@ M.add = marks.add
 M.add_dir = marks.add_dir
 M.remove = marks.remove
 M.list = marks.list
+M.toggle = marks.toggle
 M.open = marks.open
 
 return M

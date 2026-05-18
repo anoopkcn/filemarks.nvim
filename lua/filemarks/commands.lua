@@ -38,6 +38,12 @@ function M.install()
         desc = "Edit filemarks for the current project",
     })
 
+    vim.api.nvim_create_user_command("FilemarksToggle", function(opts)
+        marks.toggle(opts)
+    end, {
+        desc = "Toggle the filemarks list window",
+    })
+
     vim.api.nvim_create_user_command("FilemarksOpen", function(opts)
         local key = opts.fargs[1]
         if not key then

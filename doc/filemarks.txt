@@ -13,7 +13,8 @@ CONTENTS                                                  *filemarks-contents*
     3.2 FilemarksAddDir .................... |:FilemarksAddDir|
     3.3 FilemarksRemove .................... |:FilemarksRemove|
     3.4 FilemarksList ...................... |:FilemarksList|
-    3.5 FilemarksOpen ...................... |:FilemarksOpen|
+    3.5 FilemarksToggle .................... |:FilemarksToggle|
+    3.6 FilemarksOpen ...................... |:FilemarksOpen|
 4. Keybindings ............................. |filemarks-keybindings|
 5. Configuration ........................... |filemarks-configuration|
 6. Editor Interface ........................ |filemarks-editor|
@@ -150,7 +151,18 @@ Examples: >
     :FilemarksList
 <
 ------------------------------------------------------------------------------
-3.5 FilemarksOpen                                        *:FilemarksOpen*
+3.5 FilemarksToggle                                    *:FilemarksToggle*
+
+Toggle the filemarks list window.
+
+Syntax: >
+    :FilemarksToggle
+<
+If a Filemarks list window is currently visible, it is closed. Otherwise, the
+list is opened for the current project (same behavior as |:FilemarksList|).
+
+------------------------------------------------------------------------------
+3.6 FilemarksOpen                                        *:FilemarksOpen*
 
 Jump to a file or directory referenced by a key.
 

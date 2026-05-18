@@ -88,6 +88,7 @@ local ACTION_MAPPINGS = {
     { key = "d", desc = "Add directory mark", fn = function() M.add_dir() end },
     { key = "r", desc = "Remove filemark", fn = function() M.remove() end },
     { key = "l", desc = "Edit filemarks", fn = function() M.list() end },
+    { key = "t", desc = "Toggle filemarks list", fn = function() M.toggle() end },
 }
 
 function M.install_action_keymaps()
@@ -205,6 +206,13 @@ function M.list(opts)
         return
     end
     editor.open_editor(project_or_err, marks, opts)
+end
+
+function M.toggle(opts)
+    if editor.close_editor() then
+        return
+    end
+    M.list(opts)
 end
 
 local function open_mark(key)
