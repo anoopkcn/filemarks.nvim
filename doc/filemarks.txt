@@ -43,9 +43,18 @@ Use cases:
 ==============================================================================
 2. QUICK START                                        *filemarks-quickstart*
 
-Basic setup: >
-    require('filemarks').setup()
+Filemarks works out of the box. Commands and default keybindings are registered
+by plugin/filemarks.lua at Neovim startup, so |filemarks.setup()| is optional —
+call it only to override defaults (custom prefixes, storage path, etc.).
+
+Optional setup (only when overriding defaults): >
+    require('filemarks').setup({
+      goto_prefix = "'",
+    })
 <
+Heavy modules (marks, storage, editor) are not loaded until the first command
+or keybinding fires, so startup cost is one cheap script either way.
+
 Default keybindings (with leader = space):
     <leader>Ma      Add filemark for current file
     <leader>Md      Add directory mark
@@ -422,7 +431,14 @@ The module exposes Lua functions for programmatic use.
 ------------------------------------------------------------------------------
                                                          *filemarks.setup()*
 filemarks.setup({opts})
-    Initialize the filemarks plugin with optional configuration.
+    Optional. Override configuration defaults.
+
+    Commands and default keybindings are already registered by
+    plugin/filemarks.lua at Neovim startup, so the plugin works without
+    calling setup(). Call setup() only when you want to override defaults;
+    it tears down the default keymaps and re-installs them under your new
+    prefixes, and eagerly loads the storage file so per-mark jump keymaps
+    are registered up front (useful for which-key / :map enumeration).
 
     Parameters: ~
         {opts}  (table|nil) Configuration options (see |filemarks-configuration|)
@@ -433,14 +449,13 @@ filemarks.setup({opts})
             project_markers = { ".git", "package.json" },
         })
 <
-    Note: This also installs commands and filetype support. Call once in your
-    init.lua.
-
 ------------------------------------------------------------------------------
                                                       *filemarks.configure()*
 filemarks.configure({opts})
     Reconfigure filemarks at runtime. Unlike |filemarks.setup()|, this does
-    not install commands or filetype support.
+    not read the storage file, install commands, or install autogroups —
+    just resets and re-applies configuration plus the action and goto-prefix
+    keymaps. Cheap to call repeatedly.
 
     Parameters: ~
         {opts}  (table|nil) Configuration options

@@ -13,26 +13,15 @@ local M = {}
 
 function M.configure(opts)
     config.configure(opts or {})
-    storage.load()
     marks.install_action_keymaps()
     keymaps.install_goto_prefix_fallback()
 end
 
-local function install_project_cache_invalidation()
-    local group = vim.api.nvim_create_augroup("FilemarksProjectCache", { clear = true })
-    vim.api.nvim_create_autocmd({ "BufFilePost", "BufNewFile" }, {
-        group = group,
-        callback = function(ev)
-            vim.b[ev.buf].filemarks_project_cached = nil
-        end,
-    })
-end
-
 function M.setup(opts)
     M.configure(opts or {})
+    storage.load()
     commands.install()
     editor_ui.install_filetype_support()
-    install_project_cache_invalidation()
 end
 
 M.add = marks.add

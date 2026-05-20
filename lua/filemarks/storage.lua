@@ -18,6 +18,20 @@ local function ensure_storage_dir()
     end
 end
 
+local function ensure_project_cache_invalidation()
+    if state.project_cache_autocmd then
+        return
+    end
+    local group = vim.api.nvim_create_augroup("FilemarksProjectCache", { clear = true })
+    state.project_cache_autocmd = group
+    vim.api.nvim_create_autocmd({ "BufFilePost", "BufNewFile" }, {
+        group = group,
+        callback = function(ev)
+            vim.b[ev.buf].filemarks_project_cached = nil
+        end,
+    })
+end
+
 local function canonicalize_project_marks(project, marks)
     if not project or type(marks) ~= "table" then
         return false
@@ -84,6 +98,7 @@ function M.load()
     end
     state.loaded = true
     state.loaded_path = path
+    ensure_project_cache_invalidation()
     local fd = uv.fs_open(path, "r", FILE_READ_MODE)
     if fd then
         local stat = uv.fs_fstat(fd)

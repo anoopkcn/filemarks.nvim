@@ -1,10 +1,9 @@
 local state = require("filemarks.state")
 
 local M = {}
-local open_handler = nil
 
-function M.set_open_handler(fn)
-    open_handler = fn
+local function call_open(key)
+    require("filemarks.marks").open(key)
 end
 
 local function clear_keymap(key)
@@ -16,7 +15,7 @@ local function clear_keymap(key)
 end
 
 function M.ensure_jump_keymap(key, opts)
-    if not open_handler or state.keymaps[key] or not state.config.goto_prefix or state.config.goto_prefix == "" then
+    if state.keymaps[key] or not state.config.goto_prefix or state.config.goto_prefix == "" then
         return
     end
     local lhs = state.config.goto_prefix .. key
@@ -30,7 +29,7 @@ function M.ensure_jump_keymap(key, opts)
         return
     end
     vim.keymap.set("n", lhs, function()
-        open_handler(key)
+        call_open(key)
     end, { desc = string.format("Filemarks: jump to %s", key) })
     state.keymaps[key] = lhs
 end
@@ -67,9 +66,6 @@ function M.install_action_keymaps(actions)
 end
 
 local function handle_prefix_jump()
-    if not open_handler then
-        return
-    end
     local ok, key = pcall(vim.fn.getcharstr)
     if not ok or not key or key == "" then
         return
@@ -77,12 +73,12 @@ local function handle_prefix_jump()
     if key == "\027" or key == "<Esc>" then
         return
     end
-    open_handler(key)
+    call_open(key)
 end
 
 function M.install_goto_prefix_fallback()
     local prefix = state.config.goto_prefix
-    if not prefix or prefix == "" or not open_handler then
+    if not prefix or prefix == "" then
         return
     end
     vim.keymap.set("n", prefix, handle_prefix_jump, { desc = "Filemarks: jump to mark" })

@@ -254,6 +254,4 @@ end
 
 M.open = open_mark
 
-keymaps.set_open_handler(open_mark)
-
 return M

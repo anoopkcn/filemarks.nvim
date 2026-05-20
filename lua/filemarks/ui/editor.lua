@@ -143,6 +143,7 @@ local function setup_filemarks_buffer_autocmds(buf)
 end
 
 function M.open_editor(project, marks, cmd_opts)
+    M.install_filetype_support()
     local target_name = string.format("Filemarks://%s", project)
     local existing, existing_win = nil, nil
     for _, win in ipairs(vim.api.nvim_list_wins()) do

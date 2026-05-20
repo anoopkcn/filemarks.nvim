@@ -25,42 +25,55 @@ A Neovim plugin for managing persistent, project-scoped file and directory bookm
 
 ## Installation
 
+Filemarks registers its commands and default keybindings in `plugin/filemarks.lua`,
+so it works out of the box on Neovim startup. `setup()` is **optional** — call it
+only to override defaults (custom prefixes, storage path, etc.).
+
+Heavy modules (`marks`, `storage`, `editor`) are not loaded until the first command
+or keybinding fires, so the startup cost is one cheap script regardless of whether
+`setup()` is called.
+
 ### Using neovim native [vim.pack](https://neovim.io/doc/user/pack.html#vim.pack)
 ```lua
 vim.pack.add({ src = "https://github.com/anoopkcn/filemarks.nvim" })
-require('filemarks').setup()
+-- require('filemarks').setup()  -- optional; only needed to override defaults
 ```
 
 ### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
+-- Simplest: no triggers needed; plugin/filemarks.lua wires everything up.
+{ 'anoopkcn/filemarks.nvim', lazy = false }
+```
+
+Note: under lazy.nvim, `lazy = true` with no `cmd`/`keys` triggers means
+`plugin/filemarks.lua` never loads (this is lazy.nvim's design). Either set
+`lazy = false` (cheap, since the plugin/ script is lazy-by-impl) or declare
+explicit triggers:
+
+```lua
 {
   'anoopkcn/filemarks.nvim',
-  config = function()
-    require('filemarks').setup()
-  end
+  cmd = { "FilemarksAdd", "FilemarksAddDir", "FilemarksRemove",
+          "FilemarksList", "FilemarksToggle", "FilemarksOpen" },
+  keys = { "<leader>m", "<leader>M" },
+  -- opts/config optional; only if you want to override defaults
+  -- config = function() require('filemarks').setup({ goto_prefix = "'" }) end,
 }
 ```
 
 ### Using [packer.nvim](https://github.com/wbthomason/packer.nvim)
 
 ```lua
-use {
-  'anoopkcn/filemarks.nvim',
-  config = function()
-    require('filemarks').setup()
-  end
-}
+use 'anoopkcn/filemarks.nvim'
+-- optional: require('filemarks').setup({ ... })
 ```
 
 ### Using [vim-plug](https://github.com/junegunn/vim-plug)
 
 ```vim
 Plug 'anoopkcn/filemarks.nvim'
-
-lua << EOF
-require('filemarks').setup()
-EOF
+" optional: lua require('filemarks').setup({ ... })
 ```
 
 ## Quick Start
@@ -282,13 +295,23 @@ Project B:
 
 ### `require('filemarks').setup(opts)`
 
-Initialize the plugin with configuration options.
+**Optional.** Commands and default keybindings are already registered by
+`plugin/filemarks.lua` at startup. Call `setup()` only when you want to override
+defaults; it tears down the default keymaps and re-installs under your prefixes,
+and eagerly loads the storage file so per-mark jump keymaps are registered up
+front (useful for which-key / `:map` enumeration).
 
 ```lua
 require('filemarks').setup({
-  goto_prefix = "<leader>m",
+  goto_prefix = "'",  -- replaces the default <leader>m
 })
 ```
+
+### `require('filemarks').configure(opts)`
+
+Like `setup()` but skips the eager storage load and the one-time
+command/filetype/autocmd installs. Cheap to call repeatedly at runtime to
+reconfigure prefixes or other options.
 
 ### `require('filemarks').add(key, file_path)`
 
