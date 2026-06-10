@@ -34,14 +34,9 @@ function M.ensure_jump_keymap(key, opts)
     state.keymaps[key] = lhs
 end
 
-function M.rebuild_jump_keymaps()
-    local should_exist = {}
-    for _, marks in pairs(state.data) do
-        for key in pairs(marks) do
-            should_exist[key] = true
-        end
-    end
-
+--- Make the installed jump keymaps match `should_exist` (a set of keys).
+--- The store owns the data; this module only mirrors it.
+function M.rebuild_jump_keymaps(should_exist, opts)
     for key in pairs(state.keymaps) do
         if not should_exist[key] then
             clear_keymap(key)
@@ -49,7 +44,7 @@ function M.rebuild_jump_keymaps()
     end
 
     for key in pairs(should_exist) do
-        M.ensure_jump_keymap(key)
+        M.ensure_jump_keymap(key, opts)
     end
 end
 

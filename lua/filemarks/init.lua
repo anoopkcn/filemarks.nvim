@@ -3,7 +3,7 @@
 -- Description: A Neovim plugin to manage persistent marks for files and directories per project.
 
 local config = require("filemarks.config")
-local storage = require("filemarks.storage")
+local store = require("filemarks.store")
 local keymaps = require("filemarks.keymaps")
 local marks = require("filemarks.marks")
 local commands = require("filemarks.commands")
@@ -15,11 +15,12 @@ function M.configure(opts)
     config.configure(opts or {})
     marks.install_action_keymaps()
     keymaps.install_goto_prefix_fallback()
+    store.sync_jump_keymaps({ silent = true })
 end
 
 function M.setup(opts)
     M.configure(opts or {})
-    storage.load()
+    store.load()
     commands.install()
     editor_ui.install_filetype_support()
 end

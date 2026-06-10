@@ -13,9 +13,10 @@ local default_config = {
 
 local M = {}
 
+-- Replaces settings and clears keymaps for re-projection; never touches
+-- mark data or session installs (commands, autocmd groups)
 function M.configure(opts)
     keymaps.reset_keymaps()
-    state.reset(default_config)
     state.config = vim.tbl_deep_extend("force", vim.deepcopy(default_config), opts or {})
 end
 
@@ -25,6 +26,6 @@ end
 
 M.default_config = default_config
 
-state.reset(default_config)
+state.config = vim.deepcopy(default_config)
 
 return M

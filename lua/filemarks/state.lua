@@ -1,21 +1,18 @@
 local M = {}
 
-function M.reset(default_config)
-    local commands_installed = M.commands_installed
-    local filetype_autocmd = M.filetype_autocmd
-    local project_cache_autocmd = M.project_cache_autocmd
-    M.config = vim.deepcopy(default_config)
-    M.data = {}
-    M.dirty = false
-    M.keymaps = {}
-    M.action_keymaps = {}
-    M.goto_prefix_keymap = nil
-    M.loaded = false
-    M.loaded_path = nil
-    M.load_failed = false
-    M.commands_installed = commands_installed
-    M.filetype_autocmd = filetype_autocmd
-    M.project_cache_autocmd = project_cache_autocmd
-end
+-- Replaceable settings - swapped wholesale by config.configure().
+-- Mark data is NOT here: it lives behind the store (store.lua) and
+-- survives reconfiguration.
+M.config = nil
+
+-- Keymap projection bookkeeping - cleared and rebuilt on configure
+M.keymaps = {}
+M.action_keymaps = {}
+M.goto_prefix_keymap = nil
+
+-- Session-scoped install guards - set once, never reset
+M.commands_installed = false
+M.filetype_autocmd = nil
+M.project_cache_autocmd = nil
 
 return M
