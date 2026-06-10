@@ -172,7 +172,7 @@ function M.open_editor(project, marks, cmd_opts)
 
     local target_win = nil
     if use_mods then
-        local ok = pcall(vim.cmd, mods .. " new")
+        local ok = pcall(vim.cmd, mods .. " split")
         if ok and vim.api.nvim_win_is_valid(0) then
             target_win = vim.api.nvim_get_current_win()
         end
