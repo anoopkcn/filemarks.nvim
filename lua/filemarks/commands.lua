@@ -1,8 +1,9 @@
 local state = require("filemarks.state")
-local marks = require("filemarks.marks")
 
 local M = {}
 
+-- Commands lazy-require filemarks.marks so this module can be loaded from
+-- plugin/filemarks.lua without pulling in the rest of the plugin
 function M.install()
     if state.commands_installed then
         return
@@ -10,7 +11,7 @@ function M.install()
     state.commands_installed = true
 
     vim.api.nvim_create_user_command("FilemarksAdd", function(opts)
-        marks.add(opts.fargs[1], opts.fargs[2])
+        require("filemarks.marks").add(opts.fargs[1], opts.fargs[2])
     end, {
         desc = "Add/update a persistent filemark",
         nargs = "*",
@@ -18,7 +19,7 @@ function M.install()
     })
 
     vim.api.nvim_create_user_command("FilemarksAddDir", function(opts)
-        marks.add_dir(opts.fargs[1], opts.fargs[2])
+        require("filemarks.marks").add_dir(opts.fargs[1], opts.fargs[2])
     end, {
         desc = "Add/update a persistent directory mark (detects netrw directory)",
         nargs = "*",
@@ -26,20 +27,20 @@ function M.install()
     })
 
     vim.api.nvim_create_user_command("FilemarksRemove", function(opts)
-        marks.remove(opts.fargs[1])
+        require("filemarks.marks").remove(opts.fargs[1])
     end, {
         desc = "Remove a filemark from the current project",
         nargs = "?",
     })
 
     vim.api.nvim_create_user_command("FilemarksList", function(opts)
-        marks.list(opts)
+        require("filemarks.marks").list(opts)
     end, {
         desc = "Edit filemarks for the current project",
     })
 
     vim.api.nvim_create_user_command("FilemarksToggle", function(opts)
-        marks.toggle(opts)
+        require("filemarks.marks").toggle(opts)
     end, {
         desc = "Toggle the filemarks list window",
     })
@@ -50,7 +51,7 @@ function M.install()
             vim.notify("Filemarks: provide a key to open", vim.log.levels.WARN)
             return
         end
-        marks.open(key)
+        require("filemarks.marks").open(key)
     end, {
         desc = "Jump to the file/directory referenced by a key",
         nargs = 1,

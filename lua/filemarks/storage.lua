@@ -30,6 +30,18 @@ local function ensure_project_cache_invalidation()
             vim.b[ev.buf].filemarks_project_cached = nil
         end,
     })
+    -- The cwd fallback in detect_project makes every buffer's cached project
+    -- suspect once the working directory changes
+    vim.api.nvim_create_autocmd("DirChanged", {
+        group = group,
+        callback = function()
+            for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+                if vim.api.nvim_buf_is_loaded(buf) then
+                    vim.b[buf].filemarks_project_cached = nil
+                end
+            end
+        end,
+    })
 end
 
 local function canonicalize_project_marks(project, marks)
@@ -77,6 +89,14 @@ local function write_json(encoded)
 end
 
 function M.save()
+    if state.load_failed then
+        notify(
+            string.format("Filemarks: not saving - %s could not be parsed; fix or remove it and restart",
+                state.config.storage_path),
+            log.ERROR
+        )
+        return
+    end
     if not state.dirty then
         return
     end
@@ -109,13 +129,23 @@ function M.load()
                 if ok and type(decoded) == "table" then
                     state.data = decoded
                 else
-                    notify(
-                        string.format("Filemarks: failed to parse %s - keeping marks unloaded", path),
-                        log.ERROR
-                    )
                     uv.fs_close(fd)
-                    state.loaded = false
-                    state.loaded_path = nil
+                    local backup = path .. ".corrupt"
+                    local ok_rename, renamed = pcall(os.rename, path, backup)
+                    if ok_rename and renamed then
+                        notify(
+                            string.format("Filemarks: failed to parse %s - moved it to %s and started fresh", path,
+                                backup),
+                            log.ERROR
+                        )
+                    else
+                        state.load_failed = true
+                        notify(
+                            string.format("Filemarks: failed to parse %s - saving disabled to avoid overwriting it",
+                                path),
+                            log.ERROR
+                        )
+                    end
                     return
                 end
             end

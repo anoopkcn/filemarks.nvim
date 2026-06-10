@@ -75,6 +75,16 @@ local function generate_editor_lines(project, marks)
     return lines
 end
 
+local function set_editor_lines(buf, project, marks)
+    local lines = generate_editor_lines(project, marks)
+    if vim.tbl_isempty(lines) then
+        lines = { "" }
+    end
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.api.nvim_set_option_value("modified", false, { buf = buf })
+    return lines
+end
+
 local function parse_editor_buffer(buf, project)
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local parsed = {}
@@ -166,6 +176,9 @@ function M.open_editor(project, marks, cmd_opts)
 
     if existing_win then
         vim.api.nvim_set_current_win(existing_win)
+        if not editor_has_unsaved_changes(existing) then
+            set_editor_lines(existing, project, marks)
+        end
         ensure_comment_match(existing_win)
         return
     end
@@ -173,7 +186,7 @@ function M.open_editor(project, marks, cmd_opts)
     local target_win = nil
     if use_mods then
         local ok = pcall(vim.cmd, mods .. " split")
-        if ok and vim.api.nvim_win_is_valid(0) then
+        if ok then
             target_win = vim.api.nvim_get_current_win()
         end
     end
@@ -199,6 +212,9 @@ function M.open_editor(project, marks, cmd_opts)
 
     if existing then
         vim.api.nvim_win_set_buf(target_win, existing)
+        if not editor_has_unsaved_changes(existing) then
+            set_editor_lines(existing, project, marks)
+        end
         configure_comment(existing, target_win)
         return
     end
@@ -211,12 +227,7 @@ function M.open_editor(project, marks, cmd_opts)
     vim.api.nvim_set_option_value("filetype", "filemarks", { buf = buf })
     vim.api.nvim_buf_set_name(buf, target_name)
     vim.b[buf].filemarks_project = project
-    local lines = generate_editor_lines(project, marks)
-    if vim.tbl_isempty(lines) then
-        lines = { "" }
-    end
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-    vim.api.nvim_set_option_value("modified", false, { buf = buf })
+    local lines = set_editor_lines(buf, project, marks)
     configure_comment(buf, target_win)
 
     if marks and not vim.tbl_isempty(marks) then
@@ -239,8 +250,26 @@ function M.close_editor()
         if vim.api.nvim_buf_is_loaded(buf) then
             local name = vim.api.nvim_buf_get_name(buf)
             if name and name:match("^Filemarks://") then
-                local ok, err = pcall(vim.api.nvim_win_close, win, false)
-                if not ok then
+                local ok = pcall(vim.api.nvim_win_close, win, false)
+                if ok then
+                    return true
+                end
+                -- Closing failed (e.g. last window) - show another buffer instead
+                local alt = vim.api.nvim_win_call(win, function()
+                    return vim.fn.bufnr("#")
+                end)
+                local fallback, created
+                if alt > 0 and alt ~= buf and vim.api.nvim_buf_is_valid(alt) and vim.bo[alt].buflisted then
+                    fallback = alt
+                else
+                    fallback = vim.api.nvim_create_buf(true, false)
+                    created = true
+                end
+                local swapped, err = pcall(vim.api.nvim_win_set_buf, win, fallback)
+                if not swapped then
+                    if created then
+                        pcall(vim.api.nvim_buf_delete, fallback, { force = true })
+                    end
                     notify(string.format("Filemarks: unable to close window: %s", err), log.WARN)
                 end
                 return true
@@ -260,14 +289,16 @@ function M.install_filetype_support()
         group = group,
         pattern = { "filemarks", "Filemarks://*" },
         callback = function(ev)
-            configure_comment(ev.buf, ev.win)
+            -- autocmd events carry no window id; both events fire with the
+            -- relevant window current, so let the helpers default to it
+            configure_comment(ev.buf)
         end,
     })
     vim.api.nvim_create_autocmd("BufWinLeave", {
         group = group,
         pattern = "Filemarks://*",
-        callback = function(ev)
-            clear_comment_match(ev.win)
+        callback = function()
+            clear_comment_match()
         end,
     })
 end

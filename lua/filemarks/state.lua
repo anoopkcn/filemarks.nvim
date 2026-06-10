@@ -12,18 +12,10 @@ function M.reset(default_config)
     M.goto_prefix_keymap = nil
     M.loaded = false
     M.loaded_path = nil
+    M.load_failed = false
     M.commands_installed = commands_installed
     M.filetype_autocmd = filetype_autocmd
     M.project_cache_autocmd = project_cache_autocmd
-end
-
-function M.key_in_use(key)
-    for _, marks in pairs(M.data or {}) do
-        if marks[key] then
-            return true
-        end
-    end
-    return false
 end
 
 return M

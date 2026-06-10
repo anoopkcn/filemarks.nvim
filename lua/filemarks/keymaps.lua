@@ -65,12 +65,26 @@ function M.install_action_keymaps(actions)
     end
 end
 
+-- Lazy requires so this table can be installed from plugin/filemarks.lua
+-- without loading the rest of the plugin
+local ACTION_MAPPINGS = {
+    { key = "a", desc = "Add filemark", fn = function() require("filemarks.marks").add() end },
+    { key = "d", desc = "Add directory mark", fn = function() require("filemarks.marks").add_dir() end },
+    { key = "r", desc = "Remove filemark", fn = function() require("filemarks.marks").remove() end },
+    { key = "l", desc = "Edit filemarks", fn = function() require("filemarks.marks").list() end },
+    { key = "t", desc = "Toggle filemarks list", fn = function() require("filemarks.marks").toggle() end },
+}
+
+function M.install_default_action_keymaps()
+    M.install_action_keymaps(ACTION_MAPPINGS)
+end
+
 local function handle_prefix_jump()
     local ok, key = pcall(vim.fn.getcharstr)
     if not ok or not key or key == "" then
         return
     end
-    if key == "\027" or key == "<Esc>" then
+    if key == "\027" then
         return
     end
     call_open(key)

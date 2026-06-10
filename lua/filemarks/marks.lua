@@ -83,16 +83,8 @@ local function get_marks(path_hint, create)
     return marks, project
 end
 
-local ACTION_MAPPINGS = {
-    { key = "a", desc = "Add filemark", fn = function() M.add() end },
-    { key = "d", desc = "Add directory mark", fn = function() M.add_dir() end },
-    { key = "r", desc = "Remove filemark", fn = function() M.remove() end },
-    { key = "l", desc = "Edit filemarks", fn = function() M.list() end },
-    { key = "t", desc = "Toggle filemarks list", fn = function() M.toggle() end },
-}
-
 function M.install_action_keymaps()
-    keymaps.install_action_keymaps(ACTION_MAPPINGS)
+    keymaps.install_default_action_keymaps()
 end
 
 function M.add(key, file_path)
