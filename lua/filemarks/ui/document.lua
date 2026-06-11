@@ -80,6 +80,7 @@ local function generate_lines(project, marks)
         vim.list_extend(lines, {
             string.format("# Filemarks for %s", project),
             "# Format: <key> -> <path>. Directories should have a trailing '/'",
+            "# Press <CR> on a line to open that mark",
             "",
         })
     end
@@ -108,18 +109,31 @@ function M.refresh(buf, project, marks)
     return lines
 end
 
+--- Grammar of a single list line.
+--- @return string kind "mark"|"skip"|"invalid"
+--- @return string|nil key, string|nil path (only for "mark")
+local function classify_line(line)
+    local trimmed = vim.trim(line)
+    if trimmed == "" or vim.startswith(trimmed, "#") then
+        return "skip"
+    end
+    local key, path = trimmed:match("^(%S+)%s*%->%s*(.+)$")
+    if not key then
+        return "invalid"
+    end
+    return "mark", key, path
+end
+
 --- Parse buffer lines back into a marks table (stored form), or nil + error.
 --- The inverse of refresh: render -> parse is the document's invariant.
 local function parse_buffer(buf, project)
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local parsed = {}
     for idx, line in ipairs(lines) do
-        local trimmed = vim.trim(line)
-        if trimmed ~= "" and not vim.startswith(trimmed, "#") then
-            local key, path = trimmed:match("^(%S+)%s*%->%s*(.+)$")
-            if not key or not path then
-                return nil, string.format("Line %d is invalid. Expected '<key> -> <path>'", idx)
-            end
+        local kind, key, path = classify_line(line)
+        if kind == "invalid" then
+            return nil, string.format("Line %d is invalid. Expected '<key> -> <path>'", idx)
+        elseif kind == "mark" then
             if parsed[key] then
                 return nil, string.format("Duplicate key '%s' detected on line %d", key, idx)
             end
@@ -131,6 +145,35 @@ local function parse_buffer(buf, project)
         end
     end
     return parsed
+end
+
+--- Open the mark on the cursor line of the current list buffer.
+function M.open_mark_at_cursor()
+    local buf = vim.api.nvim_get_current_buf()
+    local project = vim.b[buf].filemarks_project
+    if not project then
+        return
+    end
+    local kind, _, path = classify_line(vim.api.nvim_get_current_line())
+    if kind == "skip" then
+        return
+    end
+    if kind == "invalid" then
+        notify("Filemarks: line is not a mark. Expected '<key> -> <path>'", log.WARN)
+        return
+    end
+    local mark = markpath.resolve(path, project)
+    if not mark then
+        notify("Filemarks: could not resolve path on this line", log.ERROR)
+        return
+    end
+    if M.has_unsaved_changes(buf) then
+        -- bufhidden=wipe: leaving a modified list discards its edits
+        notify("Filemarks: save your changes (:w) before opening a mark", log.WARN)
+        return
+    end
+    -- lazy require: marks.lua requires this module through ui/editor
+    require("filemarks.marks").show(mark)
 end
 
 local function setup_buffer_autocmds(buf)
@@ -194,6 +237,10 @@ function M.create(win, project, marks)
     end
 
     setup_buffer_autocmds(buf)
+    vim.keymap.set("n", "<CR>", M.open_mark_at_cursor, {
+        buffer = buf,
+        desc = "Filemarks: open mark on this line",
+    })
     vim.b[buf].filemarks_initialized = true
     return buf
 end

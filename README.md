@@ -234,6 +234,10 @@ m -> main.go
 
 Edit the buffer and save (`:w`) to persist changes. Keybindings are automatically updated.
 
+Press `<CR>` on a mark line to open it: files open in the list window (or focus
+a window already showing them), directories go through `dir_open_cmd`. Save
+first if the list has unsaved changes.
+
 ### `:FilemarksToggle`
 
 Toggle the filemarks list window. Closes it if a Filemarks window is visible, otherwise opens the list for the current project (same behavior as `:FilemarksList`).

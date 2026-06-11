@@ -65,8 +65,8 @@ local function focus_buffer_for_path(path)
                         return true
                     end
                 end
-                vim.cmd("buffer " .. bufnr)
-                return true
+                local ok = pcall(vim.cmd, "buffer " .. bufnr)
+                return ok
             end
         end
     end
@@ -220,6 +220,23 @@ function M.toggle(opts)
     M.list(opts)
 end
 
+--- Open a resolved markpath record: directories go through dir_open_cmd,
+--- files focus an existing window/buffer or :edit in the current window.
+function M.show(mark)
+    if mark.is_dir then
+        open_directory(mark.resolved)
+        return
+    end
+
+    if focus_buffer_for_path(mark.resolved) then
+        return
+    end
+    local ok, err = pcall(vim.cmd, "edit " .. vim.fn.fnameescape(mark.resolved))
+    if not ok then
+        notify(string.format("Filemarks: unable to open %s: %s", mark.display, err), log.ERROR)
+    end
+end
+
 local function open_mark(key)
     if not key or key == "" then
         return
@@ -244,15 +261,7 @@ local function open_mark(key)
         return
     end
 
-    if mark.is_dir then
-        open_directory(mark.resolved)
-        return
-    end
-
-    if focus_buffer_for_path(mark.resolved) then
-        return
-    end
-    vim.cmd("edit " .. vim.fn.fnameescape(mark.resolved))
+    M.show(mark)
 end
 
 M.open = open_mark

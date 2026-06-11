@@ -373,6 +373,12 @@ The editor buffer shows marks in this format: >
 <
 Editor operations:~
 
+Open a mark:~
+    Press <CR> on a mark line. Files open in the list window, or focus a
+    window already showing them; directories go through
+    |g:filemarks_dir_open_cmd|. If the list has unsaved changes, save
+    first (:w) - opening would discard them.
+
 Add a mark:~
     1. Add a new line: {key} -> {path}
     2. Save the buffer (:w)
