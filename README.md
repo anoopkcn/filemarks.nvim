@@ -128,6 +128,8 @@ require('filemarks').setup({
   --   "rightbelow vsplit"
   --   function() vim.cmd("topleft split") end
   list_open_cmd = nil,
+  -- Key that closes the list window (buffer-local). Set to "" to disable.
+  list_close_key = "gq",
 })
 ```
 
@@ -237,6 +239,9 @@ Edit the buffer and save (`:w`) to persist changes. Keybindings are automaticall
 Press `<CR>` on a mark line to open it: files open in the list window (or focus
 a window already showing them), directories go through `dir_open_cmd`. Save
 first if the list has unsaved changes.
+
+Press `gq` to close the list window. The key is configurable via
+`list_close_key` (set it to `""` to disable the mapping).
 
 ### `:FilemarksToggle`
 

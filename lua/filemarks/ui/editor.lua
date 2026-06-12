@@ -41,6 +41,13 @@ function M.open_editor(project, marks, cmd_opts)
 end
 
 function M.close_editor()
+    -- Prefer the current window so closing from inside a list targets that
+    -- list, not another project's
+    local cur_win = vim.api.nvim_get_current_win()
+    local cur_buf = vim.api.nvim_win_get_buf(cur_win)
+    if document.is_list_buffer(cur_buf) then
+        return placement.close(cur_win, cur_buf)
+    end
     local win, buf = placement.find_window(document.is_list_buffer)
     if not win then
         return false

@@ -77,10 +77,15 @@ local function generate_lines(project, marks)
     local lines = {}
 
     if state.config.show_help then
+        local open_help = "# Press <CR> on a line to open that mark"
+        local close_key = state.config.list_close_key
+        if close_key and close_key ~= "" then
+            open_help = string.format("%s, %s to close this window", open_help, close_key)
+        end
         vim.list_extend(lines, {
             string.format("# Filemarks for %s", project),
             "# Format: <key> -> <path>. Directories should have a trailing '/'",
-            "# Press <CR> on a line to open that mark",
+            open_help,
             "",
         })
     end
@@ -241,6 +246,16 @@ function M.create(win, project, marks)
         buffer = buf,
         desc = "Filemarks: open mark on this line",
     })
+    local close_key = state.config.list_close_key
+    if close_key and close_key ~= "" then
+        vim.keymap.set("n", close_key, function()
+            -- lazy require: editor.lua requires this module
+            require("filemarks.ui.editor").close_editor()
+        end, {
+            buffer = buf,
+            desc = "Filemarks: close list window",
+        })
+    end
     vim.b[buf].filemarks_initialized = true
     return buf
 end

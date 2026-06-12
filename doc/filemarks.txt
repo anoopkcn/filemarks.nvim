@@ -251,6 +251,7 @@ Configure filemarks in your init.lua: >
         project_markers = { ".git", ".hg", ".svn" },
         dir_open_cmd = nil,
         list_open_cmd = nil,
+        list_close_key = "gq",
     })
 <
 ------------------------------------------------------------------------------
@@ -345,6 +346,21 @@ Examples: >
     list_open_cmd = function() vim.cmd("topleft split") end
 <
 
+------------------------------------------------------------------------------
+                                              *g:filemarks_list_close_key*
+list_close_key~
+    Type: string
+    Default: "gq"
+
+Buffer-local normal-mode key that closes the filemarks list window. Set to
+empty string "" to disable the mapping.
+
+Examples: >
+    list_close_key = "q"        -- Close with q
+    list_close_key = "<Esc>"    -- Close with Escape
+    list_close_key = ""         -- No close mapping
+<
+
 ==============================================================================
 6. EDITOR INTERFACE                                      *filemarks-editor*
 
@@ -378,6 +394,10 @@ Open a mark:~
     window already showing them; directories go through
     |g:filemarks_dir_open_cmd|. If the list has unsaved changes, save
     first (:w) - opening would discard them.
+
+Close the list:~
+    Press gq (or your |g:filemarks_list_close_key|) to close the list
+    window.
 
 Add a mark:~
     1. Add a new line: {key} -> {path}
