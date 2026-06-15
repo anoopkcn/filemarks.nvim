@@ -231,7 +231,11 @@ function M.show(mark)
     if focus_buffer_for_path(mark.resolved) then
         return
     end
-    local ok, err = pcall(vim.cmd, "edit " .. vim.fn.fnameescape(mark.resolved))
+    -- Edit via a cwd-relative path so the statusline shows the relative form
+    -- (same as `:e <file>`). fnamemodify(":.") falls back to the absolute
+    -- path when the file lives outside cwd.
+    local target = vim.fn.fnamemodify(mark.resolved, ":.")
+    local ok, err = pcall(vim.cmd, "edit " .. vim.fn.fnameescape(target))
     if not ok then
         notify(string.format("Filemarks: unable to open %s: %s", mark.display, err), log.ERROR)
     end
