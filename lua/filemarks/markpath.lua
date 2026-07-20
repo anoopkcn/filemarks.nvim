@@ -16,10 +16,23 @@ local function is_absolute(path)
     return first == "/" or first == "\\" or path:match("^%a:[/\\]") ~= nil
 end
 
+-- Buffer names from plugins like oil.nvim carry a URI scheme
+-- (oil:///abs/path, or oil:/abs/path once slashes are collapsed); marks
+-- always point at real paths, so strip it. Scheme needs 2+ chars so
+-- Windows drive letters (C:/) are left alone.
+local function strip_scheme(path)
+    local rest = path:match("^%a[%w+.-]+://(.*)") or path:match("^%a[%w+.-]+:(/.*)")
+    if rest and rest ~= "" then
+        return rest
+    end
+    return path
+end
+
 function M.normalize(path)
     if type(path) ~= "string" or path == "" then
         return nil
     end
+    path = strip_scheme(path)
     local ok, resolved = pcall(uv.fs_realpath, path)
     if ok and type(resolved) == "string" then
         return vim.fs.normalize(resolved)
@@ -66,7 +79,7 @@ local function resolve_absolute(input, project)
     if type(input) ~= "string" then
         return nil
     end
-    local trimmed = vim.trim(input)
+    local trimmed = strip_scheme(vim.trim(input))
     if trimmed == "" then
         return nil
     end
