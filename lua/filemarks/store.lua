@@ -7,7 +7,7 @@ local state = require("filemarks.state")
 local markpath = require("filemarks.markpath")
 local keymaps = require("filemarks.keymaps")
 
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 local notify = vim.notify
 local log = vim.log.levels

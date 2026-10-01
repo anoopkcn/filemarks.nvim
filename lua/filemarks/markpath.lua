@@ -4,7 +4,7 @@
 --   display  - what the list editor shows (stored form, trailing '/' for dirs)
 -- M.resolve() is the one place inputs are converted into all three.
 
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 local M = {}
 
