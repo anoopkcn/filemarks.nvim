@@ -123,8 +123,8 @@ Examples: >
 <
 Opening directory marks:
 When you jump to a directory mark with |:FilemarksOpen| or the jump
-keybinding, |g:filemarks_dir_open_cmd| is used. If it is nil, a notification
-is shown.
+keybinding, a window already showing that directory is focused; otherwise
+|g:filemarks_dir_open_cmd| is used. If it is nil, a notification is shown.
 
 ------------------------------------------------------------------------------
 3.3 FilemarksRemove                                      *:FilemarksRemove*
@@ -187,7 +187,8 @@ Examples: >
 <
 Behavior:
   • For files: opens in current window or switches to existing buffer
-  • For directories: uses |g:filemarks_dir_open_cmd| (notifies if unset)
+  • For directories: focuses a window already showing it, otherwise uses
+    |g:filemarks_dir_open_cmd| (notifies if unset)
   • Uses relative paths when in the same project
   • Validates mark exists before opening
 
@@ -464,8 +465,9 @@ filemarks.setup({opts})
     plugin/filemarks.lua at Neovim startup, so the plugin works without
     calling setup(). Call setup() only when you want to override defaults;
     it tears down the default keymaps and re-installs them under your new
-    prefixes, and eagerly loads the storage file so per-mark jump keymaps
-    are registered up front (useful for which-key / :map enumeration).
+    prefixes. The storage file is read on the first command or jump, not at
+    startup; per-mark jump keymaps are registered then, and until then the
+    goto prefix mapping reads the next key and jumps to it.
 
     Parameters: ~
         {opts}  (table|nil) Configuration options (see |filemarks-configuration|)
@@ -480,9 +482,9 @@ filemarks.setup({opts})
                                                       *filemarks.configure()*
 filemarks.configure({opts})
     Reconfigure filemarks at runtime. Unlike |filemarks.setup()|, this does
-    not read the storage file, install commands, or install autogroups —
-    just resets and re-applies configuration plus the action and goto-prefix
-    keymaps. Cheap to call repeatedly.
+    not install commands — just resets and re-applies configuration plus the
+    action, goto-prefix and (once marks are loaded) jump keymaps. Cheap to
+    call repeatedly.
 
     Parameters: ~
         {opts}  (table|nil) Configuration options

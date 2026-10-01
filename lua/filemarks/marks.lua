@@ -45,14 +45,17 @@ local function current_dir_context()
     return markpath.normalize(vim.fn.getcwd())
 end
 
-local function focus_buffer_for_path(path)
+-- Focus a window showing `path`; failing that (unless `window_only`), show
+-- its loaded buffer in the current window. List buffers (Filemarks:///proj)
+-- are skipped: their name strips to the project directory.
+local function focus_buffer_for_path(path, window_only)
     local target = markpath.normalize(path)
     if not target then
         return false
     end
 
     for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(bufnr) then
+        if vim.api.nvim_buf_is_loaded(bufnr) and vim.bo[bufnr].filetype ~= "filemarks" then
             local name = vim.api.nvim_buf_get_name(bufnr)
             if name ~= "" and markpath.normalize(name) == target then
                 for _, win in ipairs(vim.api.nvim_list_wins()) do
@@ -60,6 +63,9 @@ local function focus_buffer_for_path(path)
                         vim.api.nvim_set_current_win(win)
                         return true
                     end
+                end
+                if window_only then
+                    return false
                 end
                 local ok = pcall(vim.cmd, "buffer " .. bufnr)
                 return ok
@@ -220,11 +226,14 @@ function M.toggle(opts)
     M.list(opts)
 end
 
---- Open a resolved markpath record: directories go through dir_open_cmd,
---- files focus an existing window/buffer or :edit in the current window.
+--- Open a resolved markpath record. Both kinds focus a window already
+--- showing the path; otherwise directories go through dir_open_cmd, and
+--- files reuse their loaded buffer or :edit in the current window.
 function M.show(mark)
     if mark.is_dir then
-        open_directory(mark.resolved)
+        if not focus_buffer_for_path(mark.resolved, true) then
+            open_directory(mark.resolved)
+        end
         return
     end
 

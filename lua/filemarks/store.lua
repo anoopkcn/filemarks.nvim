@@ -160,10 +160,6 @@ local function load()
     end
 end
 
-function M.load()
-    load()
-end
-
 --- Marks for a project, as a copy - mutations only happen through the store.
 function M.marks_for(project)
     load()

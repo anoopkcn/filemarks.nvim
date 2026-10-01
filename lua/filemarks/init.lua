@@ -19,9 +19,9 @@ function M.configure(opts)
     state.configured = true
 end
 
+-- Mark data loads lazily on the first command or jump, not here
 function M.setup(opts)
     M.configure(opts or {})
-    store.load()
     commands.install()
 end
 

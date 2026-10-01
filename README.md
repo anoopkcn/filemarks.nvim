@@ -198,7 +198,8 @@ When called without a directory path:
 2. Falls back to current file's directory
 3. Falls back to current working directory
 
-Opening a directory mark uses `dir_open_cmd`. If it is `nil`, you'll see
+Opening a directory mark focuses a window already showing that directory;
+otherwise it uses `dir_open_cmd`. If that is `nil`, you'll see
 "Filemarks: file explorer not set". Set it to `"Explore"`, `"Oil %s"`, or a
 custom function to choose your file viewer.
 
@@ -238,7 +239,8 @@ m -> main.go
 Edit the buffer and save (`:w`) to persist changes. Keybindings are automatically updated.
 
 Press `<CR>` on a mark line to open it: files open in the list window (or focus
-a window already showing them), directories go through `dir_open_cmd`. Save
+a window already showing them), directories focus a window already showing them
+or go through `dir_open_cmd`. Save
 first if the list has unsaved changes.
 
 Press `gq` to close the list window. The key is configurable via
@@ -307,9 +309,10 @@ Project B:
 
 **Optional.** Commands and default keybindings are already registered by
 `plugin/filemarks.lua` at startup. Call `setup()` only when you want to override
-defaults; it tears down the default keymaps and re-installs under your prefixes,
-and eagerly loads the storage file so per-mark jump keymaps are registered up
-front (useful for which-key / `:map` enumeration).
+defaults; it tears down the default keymaps and re-installs under your prefixes.
+The storage file is read on the first command or jump, not at startup; per-mark
+jump keymaps (`<leader>m<key>`) are registered then, and until then the
+`goto_prefix` mapping reads the next key and jumps to it.
 
 ```lua
 require('filemarks').setup({
@@ -319,9 +322,8 @@ require('filemarks').setup({
 
 ### `require('filemarks').configure(opts)`
 
-Like `setup()` but skips the eager storage load and the one-time
-command/filetype/autocmd installs. Cheap to call repeatedly at runtime to
-reconfigure prefixes or other options.
+Like `setup()` but skips the one-time command install. Cheap to call
+repeatedly at runtime to reconfigure prefixes or other options.
 
 ### `require('filemarks').add(key, file_path)`
 
