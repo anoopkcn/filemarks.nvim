@@ -21,7 +21,7 @@ function M.install()
     vim.api.nvim_create_user_command("FilemarksAddDir", function(opts)
         require("filemarks.marks").add_dir(opts.fargs[1], opts.fargs[2])
     end, {
-        desc = "Add/update a persistent directory mark (detects netrw directory)",
+        desc = "Add/update a persistent directory mark",
         nargs = "*",
         complete = "dir",
     })

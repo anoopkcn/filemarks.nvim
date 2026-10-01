@@ -193,7 +193,8 @@ Add or update a directory mark.
 ```
 
 When called without a directory path:
-1. Uses netrw directory if in a netrw buffer
+1. Uses the current buffer if it shows a directory (Neovim's directory buffer,
+   netrw, oil.nvim)
 2. Falls back to current file's directory
 3. Falls back to current working directory
 

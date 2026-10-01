@@ -26,14 +26,10 @@ local function detect_project(path_hint)
     return proj
 end
 
--- Directory context of the current buffer: netrw dir, the buffer's own
--- directory, or the cwd
+-- Directory context of the current buffer: the buffer itself when it is a
+-- directory (Nvim's directory buffer, netrw, oil), its parent directory, or
+-- the cwd
 local function current_dir_context()
-    local netrw_dir = vim.b.netrw_curdir
-    if type(netrw_dir) == "string" and netrw_dir ~= "" then
-        return markpath.normalize(netrw_dir)
-    end
-
     local current_file = vim.api.nvim_buf_get_name(0)
     if current_file and current_file ~= "" and not markpath.is_uri(current_file) then
         local normalized = markpath.normalize(current_file)

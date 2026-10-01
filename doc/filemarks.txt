@@ -110,7 +110,8 @@ Syntax: >
     :FilemarksAddDir [key] [dir_path]
 <
 If no directory is specified, uses the current context:
-  1. Netrw directory (if in netrw buffer)
+  1. The current buffer, if it shows a directory (Neovim directory buffer,
+     netrw, oil)
   2. Current file's directory
   3. Current working directory
 
@@ -531,8 +532,8 @@ filemarks.add_dir({key}, {dir_path})
         -- Mark specific directory
         filemarks.add_dir('t', 'tests/')
 
-        -- Mark from netrw buffer
-        -- (automatically detects netrw directory)
+        -- Mark from a directory buffer (:edit src/, netrw, oil)
+        -- (marks the directory it shows)
         filemarks.add_dir('src')
 <
 ------------------------------------------------------------------------------
