@@ -1,6 +1,6 @@
 -- The list document: the editable "<key> -> <path>" buffer for a project.
 -- Owns rendering, parsing (the round-trip invariant), buffer construction,
--- and the buffer's display niceties (filetype, comment highlight).
+-- and the buffer's filetype (comments are highlighted by syntax/filemarks.vim).
 -- Knows nothing about window placement.
 
 local state = require("filemarks.state")
@@ -36,41 +36,6 @@ function M.has_unsaved_changes(buf)
         return false
     end
     return vim.api.nvim_get_option_value("modified", { buf = buf }) == true
-end
-
-function M.ensure_comment_match(win)
-    local target_win = win or vim.api.nvim_get_current_win()
-    if not target_win or not vim.api.nvim_win_is_valid(target_win) then
-        return
-    end
-    local buf = vim.api.nvim_win_get_buf(target_win)
-    if not buf or not vim.api.nvim_buf_is_valid(buf) then
-        return
-    end
-    if vim.w[target_win].filemarks_comment_match then
-        return
-    end
-    local id = vim.api.nvim_win_call(target_win, function()
-        return vim.fn.matchadd("Comment", "^\\s*#.*")
-    end)
-    vim.w[target_win].filemarks_comment_match = id
-end
-
-function M.clear_comment_match(win)
-    local target_win = win or vim.api.nvim_get_current_win()
-    if not target_win or not vim.api.nvim_win_is_valid(target_win) then
-        return
-    end
-    local existing = vim.w[target_win].filemarks_comment_match
-    if existing then
-        pcall(vim.fn.matchdelete, existing, target_win)
-        vim.w[target_win].filemarks_comment_match = nil
-    end
-end
-
-function M.configure_comment(buf, win)
-    vim.api.nvim_set_option_value("commentstring", "# %s", { buf = buf })
-    M.ensure_comment_match(win)
 end
 
 local function generate_lines(project, marks)
@@ -228,8 +193,8 @@ function M.create(win, project, marks)
     vim.api.nvim_set_option_value("filetype", "filemarks", { buf = buf })
     vim.api.nvim_buf_set_name(buf, M.buffer_name(project))
     vim.b[buf].filemarks_project = project
+    vim.api.nvim_set_option_value("commentstring", "# %s", { buf = buf })
     local lines = M.refresh(buf, project, marks)
-    M.configure_comment(buf, win)
 
     if marks and not vim.tbl_isempty(marks) then
         for i, line in ipairs(lines) do
@@ -258,30 +223,6 @@ function M.create(win, project, marks)
     end
     vim.b[buf].filemarks_initialized = true
     return buf
-end
-
-function M.install_filetype_support()
-    if state.filetype_autocmd then
-        return
-    end
-    local group = vim.api.nvim_create_augroup("FilemarksFiletype", { clear = true })
-    state.filetype_autocmd = group
-    vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
-        group = group,
-        pattern = { "filemarks", "Filemarks://*" },
-        callback = function(ev)
-            -- autocmd events carry no window id; both events fire with the
-            -- relevant window current, so let the helpers default to it
-            M.configure_comment(ev.buf)
-        end,
-    })
-    vim.api.nvim_create_autocmd("BufWinLeave", {
-        group = group,
-        pattern = "Filemarks://*",
-        callback = function()
-            M.clear_comment_match()
-        end,
-    })
 end
 
 return M

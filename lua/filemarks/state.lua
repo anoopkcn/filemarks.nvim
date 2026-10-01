@@ -14,7 +14,6 @@ M.goto_prefix_keymap = nil
 M.commands_installed = false
 -- Set by configure(); plugin/filemarks.lua then has nothing left to install
 M.configured = false
-M.filetype_autocmd = nil
 M.project_cache_autocmd = nil
 
 return M

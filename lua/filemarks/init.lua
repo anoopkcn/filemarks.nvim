@@ -8,7 +8,6 @@ local store = require("filemarks.store")
 local keymaps = require("filemarks.keymaps")
 local marks = require("filemarks.marks")
 local commands = require("filemarks.commands")
-local editor_ui = require("filemarks.ui.editor")
 
 local M = {}
 
@@ -24,7 +23,6 @@ function M.setup(opts)
     M.configure(opts or {})
     store.load()
     commands.install()
-    editor_ui.install_filetype_support()
 end
 
 M.add = marks.add

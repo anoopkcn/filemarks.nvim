@@ -8,7 +8,6 @@ local placement = require("filemarks.ui.placement")
 local M = {}
 
 function M.open_editor(project, marks, cmd_opts)
-    document.install_filetype_support()
     local target_name = document.buffer_name(project)
     local function is_this_project(buf)
         return vim.api.nvim_buf_get_name(buf) == target_name
@@ -20,7 +19,6 @@ function M.open_editor(project, marks, cmd_opts)
         if not document.has_unsaved_changes(existing) then
             document.refresh(existing, project, marks)
         end
-        document.ensure_comment_match(existing_win)
         return
     end
 
@@ -33,7 +31,6 @@ function M.open_editor(project, marks, cmd_opts)
         if not document.has_unsaved_changes(existing) then
             document.refresh(existing, project, marks)
         end
-        document.configure_comment(existing, target_win)
         return
     end
 
@@ -54,7 +51,5 @@ function M.close_editor()
     end
     return placement.close(win, buf)
 end
-
-M.install_filetype_support = document.install_filetype_support
 
 return M
