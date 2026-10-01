@@ -25,6 +25,8 @@ A Neovim plugin for managing persistent, project-scoped file and directory bookm
 
 ## Installation
 
+Requires Neovim 0.11 or later.
+
 Filemarks registers its commands and default keybindings in `plugin/filemarks.lua`,
 so it works out of the box on Neovim startup. `setup()` is **optional** — call it
 only to override defaults (custom prefixes, storage path, etc.).
