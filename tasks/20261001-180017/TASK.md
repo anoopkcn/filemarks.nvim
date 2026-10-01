@@ -1,6 +1,6 @@
 # strip_scheme turns term:// and fugitive:// buffers into bogus marks
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS:
 
@@ -18,3 +18,22 @@ Note: `~/develop/filemarks.nvim` is a detached HEAD at 0479381; the copy vim.pac
 at f1e68de (one commit ahead). Check out `main` and pull before working on this.
 
 Found in the Neovim 0.13 review on 2026-10-01.
+
+## Resolution (2026-10-01)
+
+Kept oil support (README still suggests `dir_open_cmd = "Oil %s"`) and made the strip
+conditional instead of reverting f1e68de:
+
+- `lua/filemarks/markpath.lua`: `strip_scheme` strips a scheme only when the rest exists
+  on disk (`uv.fs_stat`). New `markpath.is_uri(path)` is true for a name that still
+  carries a scheme after that. `resolve_absolute` returns nil for such names, so the
+  list editor rejects them too ("Could not resolve path on line N").
+- `lua/filemarks/marks.lua`: `add()` refuses with "Filemarks: <name> is not a file on
+  disk"; `current_dir_context()` skips URI buffer names and falls back to the cwd.
+
+Checked headless: `oil:///…/lua/` and `oil:/…/lua` store `lua`; `term://~/x//123:/bin/zsh`
+and `fugitive:///…/.git//abc123/README.md` are refused; `C:/foo/bar`, relative and
+not-yet-existing paths are unchanged.
+
+Left as is: `fugitive:///repo/.git//` (status buffer) strips to the existing `.git` dir and
+would mark it. Low impact; a `buftype` check could cover it if it matters.

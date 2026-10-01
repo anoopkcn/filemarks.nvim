@@ -35,7 +35,7 @@ local function current_dir_context()
     end
 
     local current_file = vim.api.nvim_buf_get_name(0)
-    if current_file and current_file ~= "" then
+    if current_file and current_file ~= "" and not markpath.is_uri(current_file) then
         local normalized = markpath.normalize(current_file)
         if normalized and markpath.is_directory(normalized) then
             return normalized
@@ -126,6 +126,10 @@ function M.add(key, file_path)
     local input = markpath.normalize(file_path or vim.api.nvim_buf_get_name(0))
     if not input or input == "" then
         notify("Filemarks: unable to determine file path", log.WARN)
+        return
+    end
+    if markpath.is_uri(input) then
+        notify(string.format("Filemarks: %s is not a file on disk", input), log.WARN)
         return
     end
     local proj, err = detect_project(input)

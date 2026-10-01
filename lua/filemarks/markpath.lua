@@ -16,16 +16,28 @@ local function is_absolute(path)
     return first == "/" or first == "\\" or path:match("^%a:[/\\]") ~= nil
 end
 
--- Buffer names from plugins like oil.nvim carry a URI scheme
--- (oil:///abs/path, or oil:/abs/path once slashes are collapsed); marks
--- always point at real paths, so strip it. Scheme needs 2+ chars so
--- Windows drive letters (C:/) are left alone.
+-- Path after a URI scheme (oil:///abs/path, or oil:/abs/path once slashes
+-- are collapsed), or nil. Scheme needs 2+ chars so Windows drive letters
+-- (C:/) are not mistaken for one.
+local function after_scheme(path)
+    return path:match("^%a[%w+.-]+://(.*)") or path:match("^%a[%w+.-]+:(/.*)")
+end
+
+-- Buffer names from plugins like oil.nvim carry a URI scheme; marks always
+-- point at real paths, so strip it - but only when the rest exists on disk.
+-- term://~/x//123:/bin/zsh or fugitive:///repo/.git//<sha>/f keep their
+-- scheme and are rejected by M.is_uri().
 local function strip_scheme(path)
-    local rest = path:match("^%a[%w+.-]+://(.*)") or path:match("^%a[%w+.-]+:(/.*)")
-    if rest and rest ~= "" then
+    local rest = after_scheme(path)
+    if rest and rest ~= "" and uv.fs_stat(rest) then
         return rest
     end
     return path
+end
+
+--- True if `path` is a URI that does not name a real file or directory.
+function M.is_uri(path)
+    return type(path) == "string" and after_scheme(strip_scheme(path)) ~= nil
 end
 
 function M.normalize(path)
@@ -80,7 +92,7 @@ local function resolve_absolute(input, project)
         return nil
     end
     local trimmed = strip_scheme(vim.trim(input))
-    if trimmed == "" then
+    if trimmed == "" or M.is_uri(trimmed) then
         return nil
     end
     if trimmed:sub(1, 1) == "~" then
